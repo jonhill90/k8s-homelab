@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: whoami
+  namespace: default
+  annotations:
+    cert-manager.io/cluster-issuer: homelab-issuer
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - whoami.homelab.local
+      secretName: whoami-tls
+  rules:
+    - host: whoami.homelab.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: whoami
+                port:
+                  number: 80

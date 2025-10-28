@@ -1,1 +1,165 @@
-# k8s-homelab
+# Homelab v2 - Kubernetes on kind
+
+Production-grade Kubernetes homelab with three-tier PKI, automated certificate management, and Mac workstation kubectl workflow.
+
+## Quick Start
+
+```bash
+# On WSL2 (hill-arch)
+./scripts/01-setup-cluster.sh    # Create cluster
+./scripts/02-deploy-all.sh        # Deploy all services
+./scripts/03-export-root-ca.sh    # Export root CA certificate
+
+# Export kubeconfig to Mac
+scp ~/.kube/config jon@<mac-ip>:~/.kube/homelab-config
+```
+
+## Architecture Overview
+
+**Network Flow:**
+```
+Mac Workstation
+  ├─> kubectl → Windows → WSL2 → kind API (0.0.0.0:6443)
+  └─> Browser → Windows → WSL2 → nginx-ingress → Services
+```
+
+**PKI Chain:**
+```
+Root CA (10 years)
+  └─> Intermediate CA (5 years)
+        └─> Service Certificates (90 days, auto-renewed)
+```
+
+**Infrastructure:**
+- **Cluster**: 3-node kind cluster (1 control-plane, 2 workers)
+- **Certificates**: cert-manager v1.13.2 with three-tier PKI
+- **Ingress**: nginx-ingress controller
+- **Services**: Kubernetes Dashboard, whoami test app
+
+## Services
+
+| Service | URL | Certificate |
+|---------|-----|-------------|
+| Kubernetes Dashboard | https://dashboard.homelab.local | Trusted (green lock) |
+| whoami Test App | https://whoami.homelab.local | Trusted (green lock) |
+
+## Prerequisites
+
+**Mac:**
+- kubectl, k9s installed
+- Root CA trusted in Keychain
+- `/etc/hosts` entries for `*.homelab.local`
+
+**Windows:**
+- Port forwarding script running (`C:\Scripts\wsl-port-forward.ps1`)
+- Root CA trusted in Certificate Store
+
+**WSL2 (hill-arch):**
+- Docker, kind, kubectl installed
+- Git repository cloned
+
+## Documentation
+
+- [Architecture](docs/architecture.md) - Detailed network flow and component design
+- [Setup Guide](docs/setup.md) - Step-by-step installation instructions
+- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
+- [Port Forwarding](docs/port-forwarding.md) - Windows port forwarding configuration
+
+## Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `01-setup-cluster.sh` | Create kind cluster with correct API binding |
+| `02-deploy-all.sh` | Deploy all manifests in correct order |
+| `03-export-root-ca.sh` | Export root CA certificate to trust |
+| `backup-cluster.sh` | Backup all cluster resources |
+| `destroy-cluster.sh` | Delete cluster and cleanup |
+
+## Folder Structure
+
+```
+k8s-homelab/
+├── kind-config.yaml              # Cluster definition (0.0.0.0:6443)
+├── manifests/
+│   ├── 00-namespaces/            # Namespace definitions
+│   ├── 01-cert-manager/          # Three-tier PKI configuration
+│   ├── 02-ingress-nginx/         # Ingress controller
+│   ├── 03-kubernetes-dashboard/  # Dashboard with ingress
+│   ├── 04-whoami/                # Test application
+│   └── 05-dns/                   # AdGuard Home (future)
+├── scripts/                      # Automation scripts
+└── docs/                         # Documentation
+```
+
+## Key Configuration
+
+**API Server Binding:**
+- Address: `0.0.0.0:6443` (accessible from Mac via Windows port forwarding)
+- NOT `127.0.0.1:6443` (localhost only)
+
+**Certificate Issuers:**
+- `selfsigned-issuer` - Bootstrap self-signed issuer
+- `homelab-root-ca-issuer` - Root CA issuer (10y)
+- `homelab-issuer` - Final cluster issuer (uses intermediate CA)
+
+**Ingress Configuration:**
+- Runs on control-plane node (label: `ingress-ready=true`)
+- Ports 80 and 443 mapped to host
+- TLS certificates auto-issued by cert-manager
+
+## Workflow
+
+**Daily Development:**
+```bash
+# From Mac - no SSH required
+kubectl get pods -A
+k9s
+```
+
+**Deploy New Service:**
+```bash
+# Add manifest with cert-manager annotation
+cert-manager.io/cluster-issuer: homelab-issuer
+
+# Apply and verify
+kubectl apply -f manifests/
+kubectl get certificate -n <namespace>
+```
+
+## Validation
+
+```bash
+# Check cluster health
+kubectl get nodes                    # 3 nodes Ready
+kubectl get pods -A                  # All Running
+
+# Check certificates
+kubectl get certificate -A           # All True
+kubectl get secret -A | grep tls     # TLS secrets created
+
+# Check ingress
+kubectl get ingress -A               # Hosts configured
+curl -k https://dashboard.homelab.local
+```
+
+## Lab History
+
+- **Lab v1**: Successfully deployed, archived to `.archive/`
+  - ❌ API server bound to `127.0.0.1` (incorrect)
+  - ❌ No Git source control
+  - ✅ Three-tier PKI working
+  - ✅ Trusted certificates operational
+
+- **Lab v2**: Production-grade rebuild (current)
+  - ✅ API server on `0.0.0.0:6443`
+  - ✅ Full Git source control
+  - ✅ Mac-first kubectl workflow
+  - ✅ Reproducible infrastructure
+
+## Contributing
+
+This is a personal homelab project. See project documentation in basic-memory for architecture decisions and rationale.
+
+## License
+
+MIT

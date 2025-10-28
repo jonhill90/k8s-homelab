@@ -1,0 +1,9 @@
+# This manifest uses the official kind-specific nginx-ingress configuration
+# From: https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+#
+# The deployment script (02-deploy-all.sh) will download the official manifest and patch it with nodeSelector
+# to ensure the ingress controller runs on the control-plane node with label "ingress-ready=true"
+#
+# Manual deployment:
+# kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+# kubectl patch deployment ingress-nginx-controller -n ingress-nginx -p '{"spec":{"template":{"spec":{"nodeSelector":{"ingress-ready":"true"}}}}}'

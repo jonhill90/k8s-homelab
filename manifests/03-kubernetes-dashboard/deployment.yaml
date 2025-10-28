@@ -1,0 +1,6 @@
+# Kubernetes Dashboard v2.7.0
+# Official manifest will be downloaded and applied by deployment script
+# From: https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+#
+# Manual deployment:
+# kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
