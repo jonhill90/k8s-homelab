@@ -6,6 +6,8 @@ Windows port forwarding configuration for Mac workstation access to WSL2 Kuberne
 
 WSL2 uses NAT networking, which means external devices (like Mac workstations) cannot directly access services running in WSL2. Windows port forwarding bridges this gap by forwarding ports from the Windows host to WSL2.
 
+**Important:** This script is configured for Arch Linux WSL2 distribution (`archlinux`). If you're using a different distribution (e.g., Ubuntu, Debian), you'll need to modify the `wsl -d archlinux` commands in the script to match your distribution name.
+
 ## Network Architecture
 
 ```
@@ -25,8 +27,8 @@ kind Cluster
 **Purpose:**
 - Automatically detects WSL2 IP address (changes on reboot)
 - Creates Windows port forwarding rules
-- Configures Windows Firewall rules
-- Forwards ports: 80, 443, 6443
+- Logs all operations to transcript file
+- Forwards ports: 2222 (SSH), 80 (HTTP), 443 (HTTPS), 6443 (K8s API)
 
 ## Script Contents
 
@@ -35,49 +37,63 @@ kind Cluster
 # Location: C:\Scripts\wsl-port-forward.ps1
 # Run as Administrator
 
-# Get WSL2 IP address
-$wslIp = (wsl hostname -I).Trim()
+Start-Transcript -Path "C:\Scripts\wsl-port-forward.log" -Append
 
-if ([string]::IsNullOrEmpty($wslIp)) {
-    Write-Host "ERROR: Could not detect WSL2 IP address" -ForegroundColor Red
-    Write-Host "Ensure WSL2 is running: wsl --list --verbose" -ForegroundColor Yellow
+Write-Host "Starting port forward script at $(Get-Date)..."
+Start-Sleep -Seconds 5
+
+Write-Host "Ensuring WSL is running..."
+$wsl_start = wsl -d archlinux echo "WSL started" 2>&1
+Write-Host "WSL start output: $wsl_start"
+Start-Sleep -Seconds 3
+
+Write-Host "Getting WSL IP..."
+$ip_output = wsl -d archlinux ip addr show eth0 2>&1 | Out-String
+Write-Host "Raw ip output: $ip_output"
+
+# Parse IP address more reliably
+$ip_lines = $ip_output -split "`n"
+$inet_line = $ip_lines | Where-Object { $_ -match '^\s*inet\s+(\d+\.\d+\.\d+\.\d+)' }
+Write-Host "Inet line: $inet_line"
+
+if ($null -eq $inet_line -or $inet_line.Count -eq 0) {
+    Write-Host "ERROR: No inet line found"
+    Stop-Transcript
     exit 1
 }
 
-Write-Host "Detected WSL2 IP: $wslIp" -ForegroundColor Green
-
-# Ports to forward
-$ports = @(80, 443, 6443)
-
-# Remove existing forwarding rules
-Write-Host "Removing old port forwarding rules..." -ForegroundColor Yellow
-netsh interface portproxy reset
-
-# Create new forwarding rules
-foreach ($port in $ports) {
-    Write-Host "Forwarding port $port to WSL2..." -ForegroundColor Cyan
-    netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=$port connectaddress=$wslIp connectport=$port
+# Extract IP using regex
+if ($inet_line -match '(\d+\.\d+\.\d+\.\d+)') {
+    $wsl_ip = $Matches[1]
+    Write-Host "Extracted WSL IP: $wsl_ip"
+} else {
+    Write-Host "ERROR: Failed to extract IP from line"
+    Stop-Transcript
+    exit 1
 }
 
-# Configure Windows Firewall
-Write-Host "Configuring Windows Firewall..." -ForegroundColor Cyan
+if ([string]::IsNullOrEmpty($wsl_ip)) {
+    Write-Host "ERROR: IP is empty"
+    Stop-Transcript
+    exit 1
+}
 
-# Remove old rules
-Remove-NetFirewallRule -DisplayName "WSL2 HTTP" -ErrorAction SilentlyContinue
-Remove-NetFirewallRule -DisplayName "WSL2 HTTPS" -ErrorAction SilentlyContinue
-Remove-NetFirewallRule -DisplayName "WSL2 Kubernetes API" -ErrorAction SilentlyContinue
+Write-Host "Deleting old port forwarding rules..."
+@(2222, 80, 443, 6443) | ForEach-Object {
+    netsh interface portproxy delete v4tov4 listenport=$_ listenaddress=0.0.0.0 2>&1 | Out-Null
+}
 
-# Add new rules
-New-NetFirewallRule -DisplayName "WSL2 HTTP" -Direction Inbound -LocalPort 80 -Protocol TCP -Action Allow | Out-Null
-New-NetFirewallRule -DisplayName "WSL2 HTTPS" -Direction Inbound -LocalPort 443 -Protocol TCP -Action Allow | Out-Null
-New-NetFirewallRule -DisplayName "WSL2 Kubernetes API" -Direction Inbound -LocalPort 6443 -Protocol TCP -Action Allow | Out-Null
+Write-Host "Adding port forwarding rules to $wsl_ip..."
+@{2222='SSH'; 80='HTTP'; 443='HTTPS'; 6443='K8s API'}.GetEnumerator() | ForEach-Object {
+    Write-Host "Adding $($_.Value) port forwarding (port $($_.Key))..."
+    netsh interface portproxy add v4tov4 listenport=$($_.Key) listenaddress=0.0.0.0 connectport=$($_.Key) connectaddress=$wsl_ip 2>&1
+}
 
-Write-Host "`nPort forwarding configured successfully!" -ForegroundColor Green
-Write-Host "Current forwarding rules:" -ForegroundColor Yellow
+Write-Host "Current port forwarding rules:"
 netsh interface portproxy show all
 
-Write-Host "`nFirewall rules:" -ForegroundColor Yellow
-Get-NetFirewallRule | Where-Object { $_.DisplayName -like "WSL2*" } | Select-Object DisplayName, Enabled, Direction, Action
+Write-Host "Script completed successfully at $(Get-Date)"
+Stop-Transcript
 ```
 
 ## Installation
@@ -103,21 +119,38 @@ C:\Scripts\wsl-port-forward.ps1
 
 **Expected Output:**
 ```
-Detected WSL2 IP: 172.28.240.123
-Removing old port forwarding rules...
-Forwarding port 80 to WSL2...
-Forwarding port 443 to WSL2...
-Forwarding port 6443 to WSL2...
-Configuring Windows Firewall...
+Transcript started, output file is C:\Scripts\wsl-port-forward.log
+Starting port forward script at 01/29/2025 10:15:30...
+Ensuring WSL is running...
+WSL start output: WSL started
+Getting WSL IP...
+Raw ip output: 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+    link/ether 00:15:5d:xx:xx:xx brd ff:ff:ff:ff:ff:ff
+    inet 172.28.240.123/20 brd 172.28.255.255 scope global eth0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::xxxx:xxxx:xxxx:xxxx/64 scope link
+       valid_lft forever preferred_lft forever
 
-Port forwarding configured successfully!
-Current forwarding rules:
+Inet line:     inet 172.28.240.123/20 brd 172.28.255.255 scope global eth0
+Extracted WSL IP: 172.28.240.123
+Deleting old port forwarding rules...
+Adding port forwarding rules to 172.28.240.123...
+Adding SSH port forwarding (port 2222)...
+Adding HTTP port forwarding (port 80)...
+Adding HTTPS port forwarding (port 443)...
+Adding K8s API port forwarding (port 6443)...
+Current port forwarding rules:
+
 Listen on ipv4:             Connect to ipv4:
+
 Address         Port        Address         Port
 --------------- ----------  --------------- ----------
+0.0.0.0         2222        172.28.240.123  2222
 0.0.0.0         80          172.28.240.123  80
 0.0.0.0         443         172.28.240.123  443
 0.0.0.0         6443        172.28.240.123  6443
+
+Script completed successfully at 01/29/2025 10:15:35
 ```
 
 ### Step 3: Verify Forwarding
@@ -127,8 +160,12 @@ Address         Port        Address         Port
 # Check forwarding rules
 netsh interface portproxy show all
 
-# Test WSL2 connectivity
-Test-NetConnection -ComputerName (wsl hostname -I).Trim() -Port 6443
+# Get WSL2 IP and test connectivity
+$wsl_ip = (wsl -d archlinux ip addr show eth0 | Select-String -Pattern 'inet\s+(\d+\.\d+\.\d+\.\d+)' | ForEach-Object { $_.Matches.Groups[1].Value })
+Test-NetConnection -ComputerName $wsl_ip -Port 6443
+
+# Check transcript log
+Get-Content C:\Scripts\wsl-port-forward.log -Tail 20
 ```
 
 **From Mac:**
@@ -182,8 +219,11 @@ wsl --list --verbose
 
 **Check WSL2 IP:**
 ```powershell
-wsl hostname -I
-# Should return IP like 172.x.x.x
+wsl -d archlinux ip addr show eth0
+# Should show inet line like: inet 172.x.x.x/20
+
+# Or extract just the IP:
+wsl -d archlinux ip addr show eth0 | Select-String -Pattern 'inet\s+(\d+\.\d+\.\d+\.\d+)' | ForEach-Object { $_.Matches.Groups[1].Value }
 ```
 
 **Re-run script:**
@@ -191,18 +231,39 @@ wsl hostname -I
 C:\Scripts\wsl-port-forward.ps1
 ```
 
+**Check script log:**
+```powershell
+# View full log
+Get-Content C:\Scripts\wsl-port-forward.log
+
+# View last 50 lines
+Get-Content C:\Scripts\wsl-port-forward.log -Tail 50
+```
+
 ### Firewall blocking connections
+
+**Note:** The current script does not automatically configure Windows Firewall rules. If you experience connectivity issues from external devices, you may need to manually configure firewall rules.
 
 **Check firewall rules:**
 ```powershell
 Get-NetFirewallRule | Where-Object { $_.DisplayName -like "WSL2*" }
 ```
 
-**Manually add rules:**
+**Manually add rules (if needed):**
 ```powershell
+# Run as Administrator
+New-NetFirewallRule -DisplayName "WSL2 SSH" -Direction Inbound -LocalPort 2222 -Protocol TCP -Action Allow
 New-NetFirewallRule -DisplayName "WSL2 HTTP" -Direction Inbound -LocalPort 80 -Protocol TCP -Action Allow
 New-NetFirewallRule -DisplayName "WSL2 HTTPS" -Direction Inbound -LocalPort 443 -Protocol TCP -Action Allow
 New-NetFirewallRule -DisplayName "WSL2 Kubernetes API" -Direction Inbound -LocalPort 6443 -Protocol TCP -Action Allow
+```
+
+**Remove firewall rules:**
+```powershell
+Remove-NetFirewallRule -DisplayName "WSL2 SSH" -ErrorAction SilentlyContinue
+Remove-NetFirewallRule -DisplayName "WSL2 HTTP" -ErrorAction SilentlyContinue
+Remove-NetFirewallRule -DisplayName "WSL2 HTTPS" -ErrorAction SilentlyContinue
+Remove-NetFirewallRule -DisplayName "WSL2 Kubernetes API" -ErrorAction SilentlyContinue
 ```
 
 ### WSL2 IP changes after reboot
@@ -268,11 +329,12 @@ netsh interface portproxy reset
 netsh interface portproxy delete v4tov4 listenaddress=0.0.0.0 listenport=6443
 ```
 
-**Remove firewall rules:**
+**Remove firewall rules (if previously created):**
 ```powershell
-Remove-NetFirewallRule -DisplayName "WSL2 HTTP"
-Remove-NetFirewallRule -DisplayName "WSL2 HTTPS"
-Remove-NetFirewallRule -DisplayName "WSL2 Kubernetes API"
+Remove-NetFirewallRule -DisplayName "WSL2 SSH" -ErrorAction SilentlyContinue
+Remove-NetFirewallRule -DisplayName "WSL2 HTTP" -ErrorAction SilentlyContinue
+Remove-NetFirewallRule -DisplayName "WSL2 HTTPS" -ErrorAction SilentlyContinue
+Remove-NetFirewallRule -DisplayName "WSL2 Kubernetes API" -ErrorAction SilentlyContinue
 ```
 
 ## Advanced Configuration
@@ -280,11 +342,20 @@ Remove-NetFirewallRule -DisplayName "WSL2 Kubernetes API"
 ### Forward Additional Ports
 
 ```powershell
-# Add to $ports array in script
-$ports = @(80, 443, 6443, 8080, 9090)  # Add custom ports
+# Method 1: Add to deletion array in script (line 43)
+@(2222, 80, 443, 6443, 8080, 9090) | ForEach-Object {
+    netsh interface portproxy delete v4tov4 listenport=$_ listenaddress=0.0.0.0 2>&1 | Out-Null
+}
 
-# Or manually:
-netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8080 connectaddress=$wslIp connectport=8080
+# Method 2: Add to forwarding hashtable in script (line 48)
+@{2222='SSH'; 80='HTTP'; 443='HTTPS'; 6443='K8s API'; 8080='Custom'; 9090='Prometheus'}.GetEnumerator() | ForEach-Object {
+    Write-Host "Adding $($_.Value) port forwarding (port $($_.Key))..."
+    netsh interface portproxy add v4tov4 listenport=$($_.Key) listenaddress=0.0.0.0 connectport=$($_.Key) connectaddress=$wsl_ip 2>&1
+}
+
+# Method 3: Manually add a single port
+$wsl_ip = (wsl -d archlinux ip addr show eth0 | Select-String -Pattern 'inet\s+(\d+\.\d+\.\d+\.\d+)' | ForEach-Object { $_.Matches.Groups[1].Value })
+netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 listenport=8080 connectaddress=$wsl_ip connectport=8080
 ```
 
 ### Limit to Specific IP
