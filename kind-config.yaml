@@ -4,6 +4,17 @@ name: homelab
 networking:
   apiServerAddress: "0.0.0.0"
   apiServerPort: 6443
+kubeadmConfigPatches:
+- |
+  kind: ClusterConfiguration
+  apiServer:
+    certSANs:
+    - "0.0.0.0"
+    - "192.168.68.100"
+    - "k8s-api.homelab.local"
+    - "kubernetes.homelab.local"
+    - "localhost"
+    - "127.0.0.1"
 nodes:
   - role: control-plane
     labels:
