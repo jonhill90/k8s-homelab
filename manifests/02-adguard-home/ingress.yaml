@@ -21,4 +21,4 @@ spec:
               service:
                 name: adguard-web
                 port:
-                  number: 3000
+                  number: 80
