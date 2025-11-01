@@ -34,15 +34,17 @@ Root CA (10 years)
 - **Cluster**: 3-node kind cluster (1 control-plane, 2 workers)
 - **Certificates**: cert-manager v1.13.2 with three-tier PKI
 - **Ingress**: nginx-ingress controller
-- **Services**: Kubernetes Dashboard, Portainer (Docker container with K8s ingress), whoami test app
+- **DNS**: AdGuard Home (cluster-wide DNS with ad blocking)
+- **Services**: Kubernetes Dashboard, Portainer (Docker + K8s management), AdGuard Home, whoami test app
 
 ## Services
 
-| Service | URL | Certificate |
-|---------|-----|-------------|
-| Kubernetes Dashboard | https://dashboard.homelab.local | Trusted (green lock) |
-| Portainer | https://portainer.homelab.local | Trusted (green lock) |
-| whoami Test App | https://whoami.homelab.local | Trusted (green lock) |
+| Service | URL | Certificate | Purpose |
+|---------|-----|-------------|---------|
+| Kubernetes Dashboard | https://dashboard.homelab.local | Trusted (green lock) | K8s cluster management |
+| Portainer | https://portainer.homelab.local | Trusted (green lock) | Docker + K8s management |
+| AdGuard Home | https://adguard.homelab.local | Trusted (green lock) | DNS + ad blocking (cluster-wide) |
+| whoami Test App | https://whoami.homelab.local | Trusted (green lock) | Ingress test |
 
 ## Prerequisites
 
@@ -177,6 +179,36 @@ kubectl get pods -n portainer
 5. Click Add environment
 
 **Access:** https://portainer.homelab.local (manage both Docker and Kubernetes)
+
+## AdGuard Home Setup
+
+AdGuard Home provides DNS resolution and ad blocking for all pods in the cluster.
+
+**CoreDNS Configuration:**
+```bash
+# CoreDNS forwards all DNS queries to AdGuard Home
+# AdGuard Service IP: 10.96.126.140:53
+```
+
+**Initial Setup:**
+1. Go to https://adguard.homelab.local
+2. Complete setup wizard:
+   - Set admin username/password
+   - Configure upstream DNS servers: `1.1.1.1`, `1.0.0.1`, `8.8.8.8`, `8.8.4.4`
+3. Enable DNS blocklists (Filters → DNS blocklists)
+
+**DNS Flow:**
+```
+Pod → CoreDNS (10.96.0.10) → AdGuard Home (10.96.126.140) → Upstream DNS
+```
+
+**Benefits:**
+- Ad blocking for all cluster applications
+- DNS query logging and analytics
+- Custom filtering rules
+- Safe browsing (malware/phishing protection)
+
+**Note:** AdGuard is configured for cluster-internal use only. External devices (Mac, Windows) use their default DNS unless manually configured.
 
 ## Validation
 
