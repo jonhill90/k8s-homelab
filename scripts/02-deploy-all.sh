@@ -78,6 +78,17 @@ kubectl wait --for=condition=ready pod -l app=whoami -n default --timeout=120s
 echo "Waiting for whoami certificate..."
 kubectl wait --for=condition=ready certificate whoami-tls -n default --timeout=120s
 
+# 7. Deploy Portainer
+echo ""
+echo "Step 7: Deploying Portainer..."
+kubectl apply -f manifests/06-portainer/
+
+echo "Waiting for Portainer pod to be ready..."
+kubectl wait --for=condition=ready pod -l app=portainer -n portainer --timeout=180s
+
+echo "Waiting for Portainer certificate..."
+kubectl wait --for=condition=ready certificate portainer-tls -n portainer --timeout=120s
+
 # Summary
 echo ""
 echo "================================================"
@@ -102,3 +113,4 @@ echo "4. Add hosts entries on Mac"
 echo "5. Access services:"
 echo "   - https://dashboard.homelab.local"
 echo "   - https://whoami.homelab.local"
+echo "   - https://portainer.homelab.local"

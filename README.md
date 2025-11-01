@@ -34,13 +34,14 @@ Root CA (10 years)
 - **Cluster**: 3-node kind cluster (1 control-plane, 2 workers)
 - **Certificates**: cert-manager v1.13.2 with three-tier PKI
 - **Ingress**: nginx-ingress controller
-- **Services**: Kubernetes Dashboard, whoami test app
+- **Services**: Kubernetes Dashboard, Portainer (Docker/K8s management), whoami test app
 
 ## Services
 
 | Service | URL | Certificate |
 |---------|-----|-------------|
 | Kubernetes Dashboard | https://dashboard.homelab.local | Trusted (green lock) |
+| Portainer | https://portainer.homelab.local | Trusted (green lock) |
 | whoami Test App | https://whoami.homelab.local | Trusted (green lock) |
 
 ## Prerequisites
@@ -83,10 +84,12 @@ k8s-homelab/
 ├── manifests/
 │   ├── 00-namespaces/            # Namespace definitions
 │   ├── 01-cert-manager/          # Three-tier PKI configuration
+│   ├── 02-adguard-home/          # DNS + ad blocking
 │   ├── 02-ingress-nginx/         # Ingress controller
 │   ├── 03-kubernetes-dashboard/  # Dashboard with ingress
 │   ├── 04-whoami/                # Test application
-│   └── 05-dns/                   # AdGuard Home (future)
+│   ├── 05-dns/                   # DNS configuration
+│   └── 06-portainer/             # Docker/K8s management UI
 ├── scripts/                      # Automation scripts
 └── docs/                         # Documentation
 ```
