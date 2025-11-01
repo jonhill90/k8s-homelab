@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: whoami
+  namespace: argocd
+spec:
+  # Project (use 'default' for now)
+  project: default
+
+  # Source: Your GitHub repository
+  source:
+    repoURL: https://github.com/jonhill90/k8s-homelab
+    targetRevision: main  # or HEAD
+    path: manifests/04-whoami
+
+  # Destination: Where to deploy (this cluster)
+  destination:
+    server: https://kubernetes.default.svc  # In-cluster
+    namespace: default  # whoami runs in default namespace
+
+  # Sync policy: Start with manual sync
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=false  # Namespace already exists
+    - PruneLast=true  # Delete resources last during sync
+
+    # Auto-sync enabled for full GitOps automation
+    automated:
+      prune: true      # Delete resources not in Git
+      selfHeal: true   # Revert manual kubectl changes
+
+    # Retry strategy
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
