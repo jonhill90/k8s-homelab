@@ -32,6 +32,7 @@ This repository is managed as part of a larger personal knowledge management sys
 - `202510272142` - AdGuard vs Pi-hole (DNS solution comparison)
 - `202511010247` - Portainer Deployment (hybrid Docker + K8s architecture)
 - `202511010332` - AdGuard CoreDNS Integration (cluster-wide DNS)
+- `202511010402` - Prometheus + Grafana Monitoring Stack (complete observability)
 
 **Important**: Use the `mcp__basic-memory__read_note` tool to read these notes when you need context about why decisions were made, what was tried before, or what's planned next. Do not assume - read the actual notes.
 
@@ -42,20 +43,23 @@ This repository is managed as part of a larger personal knowledge management sys
 **Cluster Health**: ✅ All systems operational
 - **Nodes**: 3/3 Ready (1 control-plane, 2 workers)
 - **Kubernetes Version**: v1.27.3
-- **Total Pods**: 23 Running
-- **Total Namespaces**: 11
+- **Total Pods**: 26 Running
+- **Total Namespaces**: 12
 
 **Deployed Services**:
 - ✅ **Kubernetes Dashboard** - https://dashboard.homelab.local (cluster management UI)
 - ✅ **Portainer** - https://portainer.homelab.local (Docker + K8s management, hybrid architecture)
 - ✅ **AdGuard Home** - https://adguard.homelab.local (DNS + ad blocking, cluster-wide)
+- ✅ **Prometheus** - https://prometheus.homelab.local (metrics collection & time-series database)
+- ✅ **Grafana** - https://grafana.homelab.local (metrics visualization, admin/admin)
 - ✅ **whoami** - https://whoami.homelab.local (test application)
 
 **Infrastructure Components**:
-- ✅ **cert-manager** - Three-tier PKI operational (6 certificates issued and ready)
-- ✅ **nginx-ingress** - Running on control-plane, routing 4 ingress resources
+- ✅ **cert-manager** - Three-tier PKI operational (8 certificates issued and ready)
+- ✅ **nginx-ingress** - Running on control-plane, routing 6 ingress resources
 - ✅ **CoreDNS** - Integrated with AdGuard (forwards to 10.96.126.140:53)
 - ✅ **Portainer Agent** - K8s deployment with NodePort 30778
+- ✅ **metrics-server** - Resource metrics for kubectl top and HPA
 
 **Network Details**:
 - Control-plane IP: 172.18.0.4 (kind network)
@@ -64,14 +68,15 @@ This repository is managed as part of a larger personal knowledge management sys
 - Portainer Server: 172.18.0.5:9000 (Docker container on kind network)
 - AdGuard DNS Service: 10.96.126.140:53
 - CoreDNS: 10.96.0.10:53
+- Prometheus Service: 10.96.72.113:9090
+- Grafana Service: 10.96.186.116:3000
 
 **Storage**:
-- 1 PersistentVolume (10Gi) bound to AdGuard Home data
+- 3 PersistentVolumes (total 25Gi)
+  - AdGuard Home: 10Gi
+  - Prometheus: 10Gi (15-day retention)
+  - Grafana: 5Gi
 - StorageClass: `standard` (kind's local-path provisioner)
-
-**Missing Components** (planned but not yet deployed):
-- ⚠️ Metrics server (can't run `kubectl top`)
-- 📊 Prometheus/Grafana monitoring stack
 
 ## Quick Health Check
 
@@ -81,24 +86,33 @@ Before making changes, verify cluster is healthy:
 # From Mac - Quick 30-second health check
 kubectl get nodes                    # Expected: 3 Ready nodes
 kubectl get pods -A | grep -v Running # Should be empty (all pods Running)
-kubectl get certificate -A           # Expected: 6 certificates, all READY=True
-kubectl get ingress -A               # Expected: 4 ingress resources (dashboard, whoami, portainer, adguard)
+kubectl get certificate -A           # Expected: 8 certificates, all READY=True
+kubectl get ingress -A               # Expected: 6 ingress resources
 
 # Verify critical services
 kubectl get pods -n cert-manager     # Expected: 3/3 Running (cert-manager, cainjector, webhook)
 kubectl get pods -n ingress-nginx    # Expected: 1/1 Running (ingress-nginx-controller)
 kubectl get pods -n portainer        # Expected: 1/1 Running (portainer-agent)
 kubectl get pods -n adguard-home     # Expected: 1/1 Running (adguard-home)
+kubectl get pods -n monitoring       # Expected: 2/2 Running (prometheus, grafana)
+kubectl get pods -n kube-system -l k8s-app=metrics-server  # Expected: 1/1 Running
+
+# Test metrics-server
+kubectl top nodes                    # Should show CPU/memory usage
+kubectl top pods -A                  # Should show pod resource usage
 
 # Check recent pod restarts (troubleshooting)
 kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
 ```
 
 **Healthy Cluster Baseline** (as of 2025-11-01):
-- All 23 pods in Running state
-- No recent restarts (except CoreDNS restarted 27m ago from config change)
-- All certificates issued and ready
-- All ingress routes responding with green lock (trusted TLS)
+- All 26 pods in Running state
+- No recent restarts
+- All 8 certificates issued and ready
+- All 6 ingress routes responding with green lock (trusted TLS)
+- metrics-server operational (kubectl top works)
+- Prometheus scraping targets successfully
+- Grafana connected to Prometheus datasource
 
 ## Common Commands
 
@@ -378,7 +392,7 @@ kubectl logs -n <namespace> <pod-name>
 ### Mac Workstation Setup
 - kubeconfig location: `~/.kube/config` (update server to `https://192.168.68.100:6443`)
 - Root CA must be trusted: Keychain Access → System → Always Trust
-- `/etc/hosts` entries: `192.168.68.100  dashboard.homelab.local whoami.homelab.local portainer.homelab.local adguard.homelab.local`
+- `/etc/hosts` entries: `192.168.68.100  dashboard.homelab.local whoami.homelab.local portainer.homelab.local adguard.homelab.local prometheus.homelab.local grafana.homelab.local`
 
 ### WSL2 (hill-arch) Setup
 - Port forwarding script MUST be running: `C:\Scripts\wsl-port-forward.ps1`
@@ -418,24 +432,24 @@ kubectl logs -n <namespace> <pod-name>
 
 ## Deployment Statistics
 
-**Manifest Files**: 25 YAML files across 7 numbered directories
-**Documentation**: 5 markdown files (2,140+ lines)
+**Manifest Files**: 33 YAML files across 9 numbered directories
+**Documentation**: 7 markdown files (2,500+ lines)
 **Automation Scripts**: 5 bash scripts
 
 **Deployed Resources** (as of 2025-11-01):
-- **Deployments**: 11 total
+- **Deployments**: 14 total
   - cert-manager ecosystem: 3 (cert-manager, cainjector, webhook)
-  - Applications: 5 (adguard-home, whoami×2, dashboard, portainer-agent)
-  - Infrastructure: 3 (ingress-nginx, coredns×2, local-path-provisioner)
-- **Services**: 14 total
-- **Ingress Routes**: 4 (dashboard, whoami, portainer, adguard)
-- **Certificates**: 6 (root-ca, intermediate-ca, dashboard-tls, whoami-tls, portainer-tls, adguard-tls)
+  - Applications: 7 (adguard-home, whoami×2, dashboard, portainer-agent, prometheus, grafana)
+  - Infrastructure: 4 (ingress-nginx, coredns×2, local-path-provisioner, metrics-server)
+- **Services**: 16 total
+- **Ingress Routes**: 6 (dashboard, whoami, portainer, adguard, prometheus, grafana)
+- **Certificates**: 8 (root-ca, intermediate-ca, dashboard-tls, whoami-tls, portainer-tls, adguard-tls, prometheus-tls, grafana-tls)
 - **ClusterIssuers**: 3 (selfsigned-issuer, homelab-root-ca-issuer, homelab-issuer)
-- **PersistentVolumes**: 1 (10Gi for AdGuard Home)
+- **PersistentVolumes**: 3 (total 25Gi: AdGuard 10Gi, Prometheus 10Gi, Grafana 5Gi)
 
 **Pod Distribution**:
-- Control-plane node: 6 pods (system components + ingress-nginx)
-- Worker 1: 8 pods (distributed workloads)
+- Control-plane node: 7 pods (system components + ingress-nginx)
+- Worker 1: 10 pods (distributed workloads)
 - Worker 2: 9 pods (distributed workloads)
 
 ## Version History
@@ -450,6 +464,6 @@ This is **Lab v2** - a complete rebuild of Lab v1 with the following fixes:
 - **2025-10-28**: Lab v2 planning and repository setup
 - **2025-10-29**: MVP deployment complete (Dashboard + whoami + PKI)
 - **2025-10-30**: AdGuard Home deployed (port configuration fix)
-- **2025-11-01**: Portainer hybrid architecture deployed + AdGuard CoreDNS integration
+- **2025-11-01**: Portainer hybrid architecture deployed + AdGuard CoreDNS integration + Complete monitoring stack (metrics-server, Prometheus, Grafana)
 
 All architectural decisions are documented in `docs/architecture.md` and basic-memory project notes.

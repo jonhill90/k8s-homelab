@@ -89,6 +89,38 @@ kubectl wait --for=condition=ready pod -l app=portainer -n portainer --timeout=1
 echo "Waiting for Portainer certificate..."
 kubectl wait --for=condition=ready certificate portainer-tls -n portainer --timeout=120s
 
+# 8. Install metrics-server
+echo ""
+echo "Step 8: Installing metrics-server..."
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+echo "Patching metrics-server for kind cluster..."
+kubectl patch deployment metrics-server -n kube-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"metrics-server","args":["--cert-dir=/tmp","--secure-port=10250","--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname","--kubelet-use-node-status-port","--metric-resolution=15s","--kubelet-insecure-tls"]}]}}}}'
+
+echo "Waiting for metrics-server to be ready..."
+kubectl wait --for=condition=ready pod -l k8s-app=metrics-server -n kube-system --timeout=120s
+
+# 9. Deploy monitoring stack (Prometheus + Grafana)
+echo ""
+echo "Step 9: Deploying monitoring stack..."
+kubectl apply -f manifests/08-monitoring/namespace.yaml
+kubectl apply -f manifests/08-monitoring/prometheus-deployment.yaml
+kubectl apply -f manifests/08-monitoring/prometheus-service.yaml
+kubectl apply -f manifests/08-monitoring/prometheus-ingress.yaml
+kubectl apply -f manifests/08-monitoring/grafana-deployment.yaml
+kubectl apply -f manifests/08-monitoring/grafana-service.yaml
+kubectl apply -f manifests/08-monitoring/grafana-ingress.yaml
+
+echo "Waiting for Prometheus to be ready..."
+kubectl wait --for=condition=ready pod -l app=prometheus -n monitoring --timeout=180s
+
+echo "Waiting for Grafana to be ready..."
+kubectl wait --for=condition=ready pod -l app=grafana -n monitoring --timeout=180s
+
+echo "Waiting for monitoring certificates..."
+kubectl wait --for=condition=ready certificate prometheus-tls -n monitoring --timeout=120s
+kubectl wait --for=condition=ready certificate grafana-tls -n monitoring --timeout=120s
+
 # Summary
 echo ""
 echo "================================================"
@@ -114,3 +146,5 @@ echo "5. Access services:"
 echo "   - https://dashboard.homelab.local"
 echo "   - https://whoami.homelab.local"
 echo "   - https://portainer.homelab.local"
+echo "   - https://prometheus.homelab.local"
+echo "   - https://grafana.homelab.local (admin/admin)"
