@@ -43,20 +43,23 @@ This repository is managed as part of a larger personal knowledge management sys
 **Cluster Health**: ✅ All systems operational
 - **Nodes**: 3/3 Ready (1 control-plane, 2 workers)
 - **Kubernetes Version**: v1.27.3
-- **Total Pods**: 26 Running
-- **Total Namespaces**: 12
+- **Total Pods**: 34 Running
+- **Total Namespaces**: 13
+- **Helm Releases**: 1 (ArgoCD)
 
 **Deployed Services**:
 - ✅ **Kubernetes Dashboard** - https://dashboard.homelab.local (cluster management UI)
 - ✅ **Portainer** - https://portainer.homelab.local (Docker + K8s management, hybrid architecture)
+- ✅ **ArgoCD** - https://argocd.homelab.local (GitOps continuous delivery, admin/q5uGw7Ofv1E0r81r)
 - ✅ **AdGuard Home** - https://adguard.homelab.local (DNS + ad blocking, cluster-wide)
 - ✅ **Prometheus** - https://prometheus.homelab.local (metrics collection & time-series database)
 - ✅ **Grafana** - https://grafana.homelab.local (metrics visualization, admin/admin)
 - ✅ **whoami** - https://whoami.homelab.local (test application)
 
 **Infrastructure Components**:
-- ✅ **cert-manager** - Three-tier PKI operational (8 certificates issued and ready)
-- ✅ **nginx-ingress** - Running on control-plane, routing 6 ingress resources
+- ✅ **cert-manager** - Three-tier PKI operational (9 certificates issued and ready)
+- ✅ **nginx-ingress** - Running on control-plane, routing 7 ingress resources
+- ✅ **ArgoCD** - Deployed via Helm (first Helm-managed application)
 - ✅ **CoreDNS** - Integrated with AdGuard (forwards to 10.96.126.140:53)
 - ✅ **Portainer Agent** - K8s deployment with NodePort 30778
 - ✅ **metrics-server** - Resource metrics for kubectl top and HPA
@@ -392,7 +395,7 @@ kubectl logs -n <namespace> <pod-name>
 ### Mac Workstation Setup
 - kubeconfig location: `~/.kube/config` (update server to `https://192.168.68.100:6443`)
 - Root CA must be trusted: Keychain Access → System → Always Trust
-- `/etc/hosts` entries: `192.168.68.100  dashboard.homelab.local whoami.homelab.local portainer.homelab.local adguard.homelab.local prometheus.homelab.local grafana.homelab.local`
+- `/etc/hosts` entries: `192.168.68.100  dashboard.homelab.local whoami.homelab.local portainer.homelab.local argocd.homelab.local adguard.homelab.local prometheus.homelab.local grafana.homelab.local`
 
 ### WSL2 (hill-arch) Setup
 - Port forwarding script MUST be running: `C:\Scripts\wsl-port-forward.ps1`

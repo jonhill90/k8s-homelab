@@ -35,6 +35,7 @@ Root CA (10 years)
 - **Certificates**: cert-manager v1.13.2 with three-tier PKI
 - **Ingress**: nginx-ingress controller
 - **DNS**: AdGuard Home (cluster-wide DNS with ad blocking)
+- **GitOps**: ArgoCD (declarative continuous delivery)
 - **Monitoring**: metrics-server, Prometheus, Grafana, kube-state-metrics, node-exporter
 - **Observability**: OpenTelemetry Collector, Loki (logs), Tempo (traces), Promtail (log collection)
 - **Applications**: Kubernetes Dashboard, Portainer (Docker + K8s management), AdGuard Home, whoami test app
@@ -45,6 +46,7 @@ Root CA (10 years)
 |---------|-----|-------------|---------|
 | Kubernetes Dashboard | https://dashboard.homelab.local | Trusted (green lock) | K8s cluster management |
 | Portainer | https://portainer.homelab.local | Trusted (green lock) | Docker + K8s management |
+| ArgoCD | https://argocd.homelab.local | Trusted (green lock) | GitOps continuous delivery |
 | AdGuard Home | https://adguard.homelab.local | Trusted (green lock) | DNS + ad blocking (cluster-wide) |
 | Prometheus | https://prometheus.homelab.local | Trusted (green lock) | Metrics collection & monitoring |
 | Grafana | https://grafana.homelab.local | Trusted (green lock) | Metrics visualization (admin/admin) |
@@ -54,10 +56,11 @@ Root CA (10 years)
 
 **Resource Count:**
 - Nodes: 3 (1 control-plane, 2 workers)
-- Pods: 36 (across 12 namespaces)
-- Certificates: 8 (all READY=True)
-- Ingress Routes: 6
+- Pods: 34 (across 13 namespaces)
+- Certificates: 9 (all READY=True)
+- Ingress Routes: 7
 - PersistentVolumes: 5 (55Gi total)
+- Helm Releases: 1 (ArgoCD)
 
 **Resource Usage (Typical Idle):**
 - CPU: ~9.6% cluster-wide
@@ -81,6 +84,7 @@ Root CA (10 years)
   192.168.68.100  dashboard.homelab.local
   192.168.68.100  whoami.homelab.local
   192.168.68.100  portainer.homelab.local
+  192.168.68.100  argocd.homelab.local
   192.168.68.100  adguard.homelab.local
   192.168.68.100  prometheus.homelab.local
   192.168.68.100  grafana.homelab.local
