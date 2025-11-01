@@ -34,7 +34,7 @@ Root CA (10 years)
 - **Cluster**: 3-node kind cluster (1 control-plane, 2 workers)
 - **Certificates**: cert-manager v1.13.2 with three-tier PKI
 - **Ingress**: nginx-ingress controller
-- **Services**: Kubernetes Dashboard, Portainer (Docker/K8s management), whoami test app
+- **Services**: Kubernetes Dashboard, Portainer (Docker container with K8s ingress), whoami test app
 
 ## Services
 
@@ -89,7 +89,7 @@ k8s-homelab/
 │   ├── 03-kubernetes-dashboard/  # Dashboard with ingress
 │   ├── 04-whoami/                # Test application
 │   ├── 05-dns/                   # DNS configuration
-│   └── 06-portainer/             # Docker/K8s management UI
+│   └── 06-portainer/             # Ingress for Portainer (runs as Docker container)
 ├── scripts/                      # Automation scripts
 └── docs/                         # Documentation
 ```
@@ -129,6 +129,35 @@ kubectl apply -f manifests/
 kubectl get certificate -n <namespace>
 ```
 
+## Portainer Setup
+
+Portainer runs as a **Docker container** (not in Kubernetes) with ingress access via nginx-ingress.
+
+**Deploy Portainer:**
+```bash
+# On WSL2 (hill-arch) - one-time setup
+docker run -d \
+  --name portainer \
+  --restart=always \
+  -p 9000:9000 \
+  -p 9443:9443 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  --network kind \
+  portainer/portainer-ce:latest
+
+# Deploy Kubernetes ingress (from Mac)
+kubectl apply -f manifests/06-portainer/
+```
+
+**Why Docker instead of Kubernetes?**
+- Direct access to Docker socket (manage kind nodes and other containers)
+- Can deploy Docker Compose stacks alongside Kubernetes
+- Not affected by cluster restarts
+- Still accessible via HTTPS with trusted certificate through ingress
+
+**Access:** https://portainer.homelab.local (complete initial setup wizard)
+
 ## Validation
 
 ```bash
@@ -143,6 +172,7 @@ kubectl get secret -A | grep tls     # TLS secrets created
 # Check ingress
 kubectl get ingress -A               # Hosts configured
 curl -k https://dashboard.homelab.local
+curl -k https://portainer.homelab.local
 ```
 
 ## Lab History
