@@ -89,7 +89,11 @@ k8s-homelab/
 │   ├── 03-kubernetes-dashboard/  # Dashboard with ingress
 │   ├── 04-whoami/                # Test application
 │   ├── 05-dns/                   # DNS configuration
-│   └── 06-portainer/             # Ingress for Portainer (runs as Docker container)
+│   └── 06-portainer/             # Portainer ingress + agent
+│       ├── agent/                # Portainer agent for K8s management
+│       ├── ingress.yaml          # HTTPS ingress for Portainer UI
+│       ├── namespace.yaml        # Portainer namespace
+│       └── service.yaml          # Service pointing to Docker container
 ├── scripts/                      # Automation scripts
 └── docs/                         # Documentation
 ```
@@ -156,7 +160,23 @@ kubectl apply -f manifests/06-portainer/
 - Not affected by cluster restarts
 - Still accessible via HTTPS with trusted certificate through ingress
 
-**Access:** https://portainer.homelab.local (complete initial setup wizard)
+**Deploy Portainer Agent (for Kubernetes management):**
+```bash
+# Deploy agent to cluster (from Mac)
+kubectl apply -f manifests/06-portainer/agent/
+
+# Verify agent running
+kubectl get pods -n portainer
+```
+
+**Add Kubernetes to Portainer:**
+1. Go to https://portainer.homelab.local
+2. Environments → Add environment → Kubernetes (via agent)
+3. Name: `homelab-cluster`
+4. Environment URL: `172.18.0.4:30778` (control-plane IP + NodePort)
+5. Click Add environment
+
+**Access:** https://portainer.homelab.local (manage both Docker and Kubernetes)
 
 ## Validation
 

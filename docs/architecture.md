@@ -374,10 +374,46 @@ kubectl describe ingress <name> -n <namespace>
 kubectl logs -n cert-manager deployment/cert-manager
 ```
 
+## Portainer Architecture
+
+**Hybrid Deployment Model:**
+- **Portainer Server**: Runs as Docker container on hill-arch (not in Kubernetes)
+- **Portainer Agent**: Runs as Kubernetes Deployment in the cluster
+
+```
+Portainer Server (Docker Container)
+  172.18.0.5:9000 on kind network
+       │
+       ├─> Manages Docker (via /var/run/docker.sock)
+       │   └─ kind cluster nodes
+       │   └─ Other Docker containers/stacks
+       │
+       └─> Manages Kubernetes (via Agent)
+           │
+           └─> Portainer Agent (K8s Deployment)
+               NodePort: 30778
+               ClusterRole: cluster-admin
+               │
+               └─ Provides full K8s cluster access
+```
+
+**Why This Architecture?**
+- **Docker Socket Access**: Portainer Server needs host Docker socket (not available inside kind pods)
+- **Kubernetes Management**: Agent in cluster provides K8s API access
+- **Single UI**: Manage both Docker and Kubernetes from one interface
+- **Network Proximity**: Both on `kind` network for direct communication
+- **HTTPS Access**: nginx-ingress routes to Portainer Server with trusted certificate
+
+**Connection Flow:**
+1. User → https://portainer.homelab.local (via nginx-ingress)
+2. Portainer Server → Docker socket (manage containers)
+3. Portainer Server → Agent (172.18.0.4:30778) → Kubernetes API
+
 ## Next Steps
 
-1. Deploy AdGuard Home for DNS + ad blocking
-2. Add monitoring (metrics-server, Prometheus)
-3. Implement backup automation
-4. Document additional services
-5. Consider persistent NFS storage
+1. ✅ Deploy Portainer for container/cluster management
+2. Deploy AdGuard Home for DNS + ad blocking
+3. Add monitoring (metrics-server, Prometheus)
+4. Implement backup automation
+5. Document additional services
+6. Consider persistent NFS storage
