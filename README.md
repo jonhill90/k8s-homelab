@@ -1,6 +1,6 @@
 # Homelab v2 - Kubernetes on kind
 
-Production-grade Kubernetes homelab with three-tier PKI, automated certificate management, and Mac workstation kubectl workflow.
+Production-grade Kubernetes homelab with three-tier PKI, automated certificate management, complete observability stack, and Mac workstation kubectl workflow.
 
 ## Quick Start
 
@@ -35,7 +35,9 @@ Root CA (10 years)
 - **Certificates**: cert-manager v1.13.2 with three-tier PKI
 - **Ingress**: nginx-ingress controller
 - **DNS**: AdGuard Home (cluster-wide DNS with ad blocking)
-- **Services**: Kubernetes Dashboard, Portainer (Docker + K8s management), AdGuard Home, whoami test app
+- **Monitoring**: metrics-server, Prometheus, Grafana, kube-state-metrics, node-exporter
+- **Observability**: OpenTelemetry Collector, Loki (logs), Tempo (traces), Promtail (log collection)
+- **Applications**: Kubernetes Dashboard, Portainer (Docker + K8s management), AdGuard Home, whoami test app
 
 ## Services
 
@@ -44,14 +46,45 @@ Root CA (10 years)
 | Kubernetes Dashboard | https://dashboard.homelab.local | Trusted (green lock) | K8s cluster management |
 | Portainer | https://portainer.homelab.local | Trusted (green lock) | Docker + K8s management |
 | AdGuard Home | https://adguard.homelab.local | Trusted (green lock) | DNS + ad blocking (cluster-wide) |
+| Prometheus | https://prometheus.homelab.local | Trusted (green lock) | Metrics collection & monitoring |
+| Grafana | https://grafana.homelab.local | Trusted (green lock) | Metrics visualization (admin/admin) |
 | whoami Test App | https://whoami.homelab.local | Trusted (green lock) | Ingress test |
+
+## Cluster Statistics
+
+**Resource Count:**
+- Nodes: 3 (1 control-plane, 2 workers)
+- Pods: 36 (across 12 namespaces)
+- Certificates: 8 (all READY=True)
+- Ingress Routes: 6
+- PersistentVolumes: 5 (55Gi total)
+
+**Resource Usage (Typical Idle):**
+- CPU: ~9.6% cluster-wide
+- Memory: ~7.0% cluster-wide
+- Disk: ~1.24% cluster-wide
+
+**Storage Allocation:**
+- AdGuard Home: 10Gi (DNS query logs & config)
+- Prometheus: 10Gi (metrics, 15-day retention)
+- Grafana: 5Gi (dashboards & settings)
+- Loki: 20Gi (application logs)
+- Tempo: 10Gi (distributed traces)
 
 ## Prerequisites
 
 **Mac:**
 - kubectl, k9s installed
 - Root CA trusted in Keychain
-- `/etc/hosts` entries for `*.homelab.local`
+- `/etc/hosts` entries:
+  ```
+  192.168.68.100  dashboard.homelab.local
+  192.168.68.100  whoami.homelab.local
+  192.168.68.100  portainer.homelab.local
+  192.168.68.100  adguard.homelab.local
+  192.168.68.100  prometheus.homelab.local
+  192.168.68.100  grafana.homelab.local
+  ```
 
 **Windows:**
 - Port forwarding script running (`C:\Scripts\wsl-port-forward.ps1`)
@@ -67,6 +100,7 @@ Root CA (10 years)
 - [Setup Guide](docs/setup.md) - Step-by-step installation instructions
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
 - [Port Forwarding](docs/port-forwarding.md) - Windows port forwarding configuration
+- [Monitoring README](manifests/08-monitoring/README.md) - Complete monitoring guide
 
 ## Scripts
 
@@ -91,11 +125,15 @@ k8s-homelab/
 │   ├── 03-kubernetes-dashboard/  # Dashboard with ingress
 │   ├── 04-whoami/                # Test application
 │   ├── 05-dns/                   # DNS configuration
-│   └── 06-portainer/             # Portainer ingress + agent
-│       ├── agent/                # Portainer agent for K8s management
-│       ├── ingress.yaml          # HTTPS ingress for Portainer UI
-│       ├── namespace.yaml        # Portainer namespace
-│       └── service.yaml          # Service pointing to Docker container
+│   ├── 06-portainer/             # Portainer ingress + agent
+│   │   ├── agent/                # Portainer agent for K8s management
+│   │   ├── ingress.yaml          # HTTPS ingress for Portainer UI
+│   │   ├── namespace.yaml        # Portainer namespace
+│   │   └── service.yaml          # Service pointing to Docker container
+│   ├── 07-metrics-server/        # Kubernetes metrics for kubectl top
+│   ├── 08-monitoring/            # Prometheus + Grafana + exporters
+│   ├── 09-opentelemetry/         # OpenTelemetry collector
+│   └── 10-observability/         # Loki + Tempo + Promtail
 ├── scripts/                      # Automation scripts
 └── docs/                         # Documentation
 ```
@@ -122,7 +160,18 @@ k8s-homelab/
 ```bash
 # From Mac - no SSH required
 kubectl get pods -A
+kubectl top nodes
 k9s
+```
+
+**Quick Health Check (30 seconds):**
+```bash
+kubectl get nodes                    # Expected: 3 Ready nodes
+kubectl get pods -A | grep -v Running # Should be empty (all pods Running)
+kubectl get certificate -A           # Expected: 8 certificates, all READY=True
+kubectl get ingress -A               # Expected: 6 ingress resources
+kubectl top nodes                    # Should show CPU/memory usage
+kubectl top pods -A                  # Should show pod resource usage
 ```
 
 **Deploy New Service:**
@@ -210,21 +259,139 @@ Pod → CoreDNS (10.96.0.10) → AdGuard Home (10.96.126.140) → Upstream DNS
 
 **Note:** AdGuard is configured for cluster-internal use only. External devices (Mac, Windows) use their default DNS unless manually configured.
 
+## Monitoring & Observability
+
+The cluster includes a complete observability stack for metrics, logs, and traces.
+
+### Metrics Collection (Prometheus + Grafana)
+
+**Architecture:**
+```
+Prometheus scrapes:
+├── kubelet → Node health metrics
+├── cadvisor → Container CPU/memory/network/disk
+├── kube-state-metrics → Pod/Deployment/Node states
+├── node-exporter → Linux host metrics (3 DaemonSet pods)
+├── API server → Control plane metrics
+└── metrics-server → Resource metrics for kubectl top
+```
+
+**Access:**
+- **Prometheus**: https://prometheus.homelab.local
+  - Query metrics, view scrape targets (Status → Targets)
+  - All targets should show "UP" status
+- **Grafana**: https://grafana.homelab.local
+  - Default credentials: `admin` / `admin` (prompts to change on first login)
+  - Prometheus datasource pre-configured
+  - Import recommended dashboards (Dashboards → Import):
+    - ID 315: Kubernetes cluster monitoring (Prometheus)
+    - ID 6417: Kubernetes Cluster (Prometheus)
+    - ID 1860: Node Exporter Full
+
+**Key Metrics Available:**
+- `container_cpu_usage_seconds_total` - Container CPU usage
+- `container_memory_usage_bytes` - Container memory usage
+- `kube_pod_status_phase` - Pod states (Running/Pending/Failed)
+- `kube_deployment_replicas` - Deployment health
+- `node_filesystem_size_bytes` - Node disk usage
+- `node_cpu_seconds_total` - Node CPU usage
+- `node_memory_MemTotal_bytes` - Node memory capacity
+
+**Example Queries:**
+```promql
+# Total running pods
+sum(kube_pod_status_phase{phase="Running"})
+
+# Node CPU usage (%)
+100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+# Pod memory usage
+sum(container_memory_usage_bytes{pod=~".*"}) by (pod)
+```
+
+### Log Aggregation (Loki + Promtail)
+
+**Components:**
+- **Loki**: Centralized log storage (20Gi retention)
+- **Promtail**: Log collection agent (DaemonSet on all nodes)
+
+**Access:**
+- Loki integrated with Grafana (Explore → Loki datasource)
+- Query logs using LogQL syntax
+
+**Example LogQL Queries:**
+```logql
+# All logs from namespace
+{namespace="monitoring"}
+
+# Error logs across cluster
+{job="kubernetes-pods"} |= "error"
+
+# Logs from specific pod
+{pod="prometheus-965fd69bb-km2nn"}
+```
+
+### Distributed Tracing (Tempo + OpenTelemetry)
+
+**Components:**
+- **Tempo**: Trace storage backend (10Gi retention)
+- **OpenTelemetry Collector**: Trace ingestion (OTLP endpoints)
+
+**Endpoints:**
+- OTLP gRPC: `otel-collector.opentelemetry:4317`
+- OTLP HTTP: `otel-collector.opentelemetry:4318`
+
+**Integration:**
+Applications can send traces using OpenTelemetry SDKs to the collector endpoints.
+
+### Monitoring Validation
+
+```bash
+# Verify metrics-server
+kubectl top nodes
+kubectl top pods -A
+
+# Check Prometheus targets
+curl -k https://prometheus.homelab.local/api/v1/targets
+
+# Check all monitoring pods
+kubectl get pods -n monitoring
+kubectl get pods -n observability
+kubectl get pods -n opentelemetry
+
+# Verify exporters
+kubectl get pods -l app=kube-state-metrics -n monitoring
+kubectl get pods -l app=node-exporter -n monitoring
+
+# Check persistent storage
+kubectl get pvc -n monitoring
+kubectl get pvc -n observability
+```
+
 ## Validation
 
 ```bash
 # Check cluster health
 kubectl get nodes                    # 3 nodes Ready
 kubectl get pods -A                  # All Running
+kubectl top nodes                    # Resource usage
+kubectl top pods -A                  # Pod resource usage
 
 # Check certificates
-kubectl get certificate -A           # All True
+kubectl get certificate -A           # All READY=True
 kubectl get secret -A | grep tls     # TLS secrets created
 
 # Check ingress
 kubectl get ingress -A               # Hosts configured
 curl -k https://dashboard.homelab.local
+curl -k https://whoami.homelab.local
 curl -k https://portainer.homelab.local
+curl -k https://adguard.homelab.local
+curl -k https://prometheus.homelab.local
+curl -k https://grafana.homelab.local
+
+# Check recent pod restarts (troubleshooting)
+kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
 ```
 
 ## Lab History
@@ -240,6 +407,14 @@ curl -k https://portainer.homelab.local
   - ✅ Full Git source control
   - ✅ Mac-first kubectl workflow
   - ✅ Reproducible infrastructure
+  - ✅ Complete observability stack
+
+**Timeline:**
+- **2025-10-28**: Project initiated, repository created
+- **2025-10-29**: MVP complete (Dashboard + whoami + TLS)
+- **2025-10-30**: AdGuard Home deployed
+- **2025-10-31**: Portainer hybrid architecture deployed
+- **2025-11-01**: Complete monitoring & observability stack deployed
 
 ## Contributing
 
