@@ -44,6 +44,7 @@ This repository is managed as part of a larger personal knowledge management sys
 - `202511012146` - PostgreSQL Database for k8s-homelab (shared database infrastructure)
 - `202511012330` - Windows/WSL2/Docker Monitoring (complete infrastructure observability)
 - `202511020116` - ArgoCD Migration Plan (application GitOps management strategy)
+- `202511021804` - n8n Deployment (workflow automation platform)
 
 **Important**: Use the `mcp__basic-memory__read_note` tool to read these notes when you need context about why decisions were made, what was tried before, or what's planned next. Do not assume - read the actual notes.
 
@@ -54,10 +55,10 @@ This repository is managed as part of a larger personal knowledge management sys
 **Cluster Health**: ✅ All systems operational
 - **Nodes**: 3/3 Ready (1 control-plane, 2 workers)
 - **Kubernetes Version**: v1.27.3
-- **Total Pods**: 46 Running
-- **Total Namespaces**: 16
+- **Total Pods**: 47 Running
+- **Total Namespaces**: 17
 - **Helm Releases**: 1 (ArgoCD)
-- **ArgoCD Applications**: 2 (whoami, postgres)
+- **ArgoCD Applications**: 3 (whoami, postgres, n8n)
 
 **Deployed Services**:
 - ✅ **Kubernetes Dashboard** - https://dashboard.homelab.local (cluster management UI)
@@ -69,11 +70,12 @@ This repository is managed as part of a larger personal knowledge management sys
 - ✅ **Loki** - Log aggregation (20Gi storage, integrated with Grafana)
 - ✅ **Tempo** - Distributed tracing (20Gi storage, integrated with Grafana)
 - ✅ **OpenTelemetry Collector** - Trace/log ingestion (OTLP gRPC:4317, HTTP:4318)
+- ✅ **n8n** - https://n8n.homelab.local (workflow automation platform)
 - ✅ **whoami** - https://whoami.homelab.local (test application)
 
 **Infrastructure Components**:
-- ✅ **cert-manager** - Three-tier PKI operational (9 certificates issued and ready)
-- ✅ **nginx-ingress** - Running on control-plane, routing 7 ingress resources
+- ✅ **cert-manager** - Three-tier PKI operational (10 certificates issued and ready)
+- ✅ **nginx-ingress** - Running on control-plane, routing 8 ingress resources
 - ✅ **ArgoCD** - Deployed via Helm (first Helm-managed application)
 - ✅ **PostgreSQL** - Shared database for applications (litellm, n8n databases created)
 - ✅ **CoreDNS** - Integrated with AdGuard (forwards to 10.96.126.140:53)
