@@ -30,12 +30,20 @@ This repository is managed as part of a larger personal knowledge management sys
 - `202510261303` - Visual PKI Guide (Mermaid diagrams, how it works)
 - `202510242246` - K8s vs Docker Decision (why kind, not Docker Compose)
 - `202510272142` - AdGuard vs Pi-hole (DNS solution comparison)
+- `202510290337` - AdGuard Home Deployment (kind StorageClass troubleshooting)
+- `202510300315` - AdGuard Home Port Configuration (health check failure fix)
 - `202511010247` - Portainer Deployment (hybrid Docker + K8s architecture)
 - `202511010332` - AdGuard CoreDNS Integration (cluster-wide DNS)
 - `202511010402` - Prometheus + Grafana Monitoring Stack (complete observability)
+- `202511010501` - OpenTelemetry + Tempo + Loki Observability Stack (distributed tracing and log aggregation)
 - `202511011421` - kube-state-metrics + node-exporter (fixing Grafana dashboard metrics)
+- `202511011645` - Kubernetes Storage Deep Dive (CKA study guide + cluster state analysis)
+- `202511011753` - Helm Migration for OTel Stack (aborted - decided manifests better)
+- `202511011857` - ArgoCD Deployment via Helm (successful first Helm use case)
 - `202511011935` - ArgoCD GitOps Configuration (automated deployment)
+- `202511012146` - PostgreSQL Database for k8s-homelab (shared database infrastructure)
 - `202511012330` - Windows/WSL2/Docker Monitoring (complete infrastructure observability)
+- `202511020116` - ArgoCD Migration Plan (application GitOps management strategy)
 
 **Important**: Use the `mcp__basic-memory__read_note` tool to read these notes when you need context about why decisions were made, what was tried before, or what's planned next. Do not assume - read the actual notes.
 
@@ -125,8 +133,8 @@ Before making changes, verify cluster is healthy:
 # From Mac - Quick 30-second health check
 kubectl get nodes                    # Expected: 3 Ready nodes
 kubectl get pods -A | grep -v Running # Should be empty (all pods Running)
-kubectl get certificate -A           # Expected: 8 certificates, all READY=True
-kubectl get ingress -A               # Expected: 6 ingress resources
+kubectl get certificate -A           # Expected: 9 certificates, all READY=True
+kubectl get ingress -A               # Expected: 7 ingress resources
 
 # Verify critical services
 kubectl get pods -n cert-manager     # Expected: 3/3 Running (cert-manager, cainjector, webhook)
