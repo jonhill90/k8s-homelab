@@ -71,20 +71,6 @@ spec:
       - name: grafana-dashboards
         configMap:
           name: grafana-dashboards
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: grafana-storage
-  namespace: monitoring
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: standard
-  resources:
-    requests:
-      storage: 5Gi
----
 apiVersion: v1
 kind: ConfigMap
 metadata:
