@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/jonx0037/k8s-homelab.git
+    repoURL: https://github.com/jonhill90/k8s-homelab.git
     targetRevision: main
     path: manifests/14-n8n
   destination:
