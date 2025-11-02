@@ -35,6 +35,7 @@ This repository is managed as part of a larger personal knowledge management sys
 - `202511010402` - Prometheus + Grafana Monitoring Stack (complete observability)
 - `202511011421` - kube-state-metrics + node-exporter (fixing Grafana dashboard metrics)
 - `202511011935` - ArgoCD GitOps Configuration (automated deployment)
+- `202511012330` - Windows/WSL2/Docker Monitoring (complete infrastructure observability)
 
 **Important**: Use the `mcp__basic-memory__read_note` tool to read these notes when you need context about why decisions were made, what was tried before, or what's planned next. Do not assume - read the actual notes.
 
@@ -73,6 +74,27 @@ This repository is managed as part of a larger personal knowledge management sys
 - ✅ **kube-state-metrics** - Kubernetes object state metrics (pod/deployment/node states)
 - ✅ **node-exporter** - DaemonSet (3 pods) for Linux host metrics
 - ✅ **Promtail** - DaemonSet (3 pods) for log collection to Loki
+
+**Complete Infrastructure Monitoring** (7,000+ metrics):
+- ✅ **Windows Host** - windows_exporter (192.168.68.100:9182)
+  - CPU, memory, disk, network metrics
+  - 157 Windows services monitored
+  - Grafana dashboard: Windows Exporter (ID 14694)
+- ✅ **WSL2 Host** - node-exporter (172.27.157.7:9100)
+  - Linux host metrics (separate from kind nodes)
+  - Filesystem, network, kernel metrics
+  - Grafana dashboard: Node Exporter Full (ID 1860)
+- ✅ **Docker Daemon** - Docker metrics (172.27.157.7:9323)
+  - Engine info, container lifecycle, build stats
+  - Grafana dashboard: Docker Dashboard (ID 1229)
+- ✅ **kind Nodes (3)** - node-exporter DaemonSet
+  - Container host metrics for all cluster nodes
+- ✅ **Kubernetes Objects** - kube-state-metrics
+  - Pod/Deployment/Node/PVC state metrics
+- ✅ **Containers (96)** - cAdvisor via kubelet
+  - Container CPU, memory, network, disk I/O
+- ✅ **Applications** - ArgoCD + PostgreSQL exporters
+  - GitOps metrics and database connection/query stats
 
 **Network Details**:
 - Control-plane IP: 172.18.0.4 (kind network)

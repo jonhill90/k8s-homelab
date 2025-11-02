@@ -352,15 +352,26 @@ The cluster includes a complete observability stack for metrics, logs, and trace
 
 ### Metrics Collection (Prometheus + Grafana)
 
-**Architecture:**
+**Complete Infrastructure Monitoring (7,000+ metrics):**
 ```
 Prometheus scrapes:
+├── Windows Host (192.168.68.100:9182) → windows_exporter
+│   ├── CPU, memory, disk, network metrics
+│   └── 157 Windows services monitored
+├── WSL2 Host (172.27.157.7:9100) → node-exporter
+│   └── Linux host metrics (filesystem, network, kernel)
+├── Docker Daemon (172.27.157.7:9323) → Docker metrics
+│   └── Engine info, container lifecycle, build stats
+├── kind Nodes (3) → node-exporter DaemonSet
+│   └── Container host metrics for all cluster nodes
+├── Kubernetes Objects → kube-state-metrics
+│   └── Pod/Deployment/Node/PVC state metrics
+├── Containers (96) → cAdvisor via kubelet
+│   └── Container CPU, memory, network, disk I/O
+├── Applications → Custom exporters
+│   ├── ArgoCD → GitOps metrics (sync status, health, git operations)
+│   └── PostgreSQL → Database metrics (connections, queries, locks, cache hits)
 ├── kubelet → Node health metrics
-├── cadvisor → Container CPU/memory/network/disk
-├── kube-state-metrics → Pod/Deployment/Node states
-├── node-exporter → Linux host metrics (3 DaemonSet pods)
-├── ArgoCD → GitOps metrics (sync status, health, git operations)
-├── PostgreSQL → Database metrics (connections, queries, locks, cache hits)
 ├── API server → Control plane metrics
 └── metrics-server → Resource metrics for kubectl top
 ```
@@ -371,26 +382,40 @@ Prometheus scrapes:
   - All targets should show "UP" status
 - **Grafana**: https://grafana.homelab.local
   - Prometheus datasource pre-configured
-  - Import recommended dashboards (Dashboards → Import):
-    - ID 315: Kubernetes cluster monitoring (Prometheus)
-    - ID 6417: Kubernetes Cluster (Prometheus)
-    - ID 1860: Node Exporter Full
-  - Pre-installed dashboards:
-    - ArgoCD: GitOps health and sync status
-    - PostgreSQL (ID 9628): Database performance and health
+  - **Operational Dashboards** (9 total):
+    - **Kubernetes Cluster (Prometheus)** - Cluster-wide metrics and health
+    - **Kubernetes cluster monitoring** - Pod/deployment/node states
+    - **Node Exporter Full (kind nodes)** - Container host metrics
+    - **Node Exporter Full (WSL2)** - WSL2 host metrics (select instance: wsl2-host)
+    - **Docker Dashboard (ID 1229)** - Docker engine metrics and container lifecycle
+    - **Windows Exporter (ID 14694)** - Windows host CPU/memory/disk/services
+    - **CoreDNS** - DNS performance and query metrics
+    - **ArgoCD** - GitOps health and sync status
+    - **PostgreSQL (ID 9628)** - Database performance and health
 
 **Key Metrics Available:**
-- `container_cpu_usage_seconds_total` - Container CPU usage
-- `container_memory_usage_bytes` - Container memory usage
-- `kube_pod_status_phase` - Pod states (Running/Pending/Failed)
-- `kube_deployment_replicas` - Deployment health
-- `node_filesystem_size_bytes` - Node disk usage
-- `node_cpu_seconds_total` - Node CPU usage
-- `node_memory_MemTotal_bytes` - Node memory capacity
-- `argocd_app_sync_status` - ArgoCD application sync state
-- `argocd_app_health_status` - ArgoCD application health
-- `pg_stat_database_*` - PostgreSQL database statistics
-- `pg_locks_count` - PostgreSQL lock contention
+- **Windows Host:**
+  - `windows_cpu_time_total` - Windows CPU usage
+  - `windows_os_physical_memory_free_bytes` - Windows memory
+  - `windows_logical_disk_free_bytes` - Windows disk space
+  - `windows_service_state` - Windows service status (157 services)
+- **WSL2/Linux Hosts:**
+  - `node_cpu_seconds_total` - CPU usage
+  - `node_memory_MemTotal_bytes` - Memory capacity
+  - `node_filesystem_size_bytes` - Disk usage
+- **Docker Daemon:**
+  - `engine_daemon_engine_info` - Docker version and info
+  - `engine_daemon_container_actions_seconds` - Container lifecycle
+- **Kubernetes:**
+  - `kube_pod_status_phase` - Pod states (Running/Pending/Failed)
+  - `kube_deployment_replicas` - Deployment health
+  - `container_cpu_usage_seconds_total` - Container CPU
+  - `container_memory_usage_bytes` - Container memory
+- **Applications:**
+  - `argocd_app_sync_status` - ArgoCD application sync state
+  - `argocd_app_health_status` - ArgoCD application health
+  - `pg_stat_database_*` - PostgreSQL database statistics
+  - `pg_locks_count` - PostgreSQL lock contention
 
 **Example Queries:**
 ```promql
