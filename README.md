@@ -1,6 +1,6 @@
 # Homelab v2 - Kubernetes on kind
 
-Production-grade Kubernetes homelab with three-tier PKI, automated certificate management, complete observability stack, and Mac workstation kubectl workflow.
+Production-grade Kubernetes homelab with three-tier PKI, automated certificate management, complete observability stack, GitOps continuous delivery, and Mac workstation kubectl workflow.
 
 ## Quick Start
 
@@ -35,7 +35,8 @@ Root CA (10 years)
 - **Certificates**: cert-manager v1.13.2 with three-tier PKI
 - **Ingress**: nginx-ingress controller
 - **DNS**: AdGuard Home (cluster-wide DNS with ad blocking)
-- **GitOps**: ArgoCD (declarative continuous delivery)
+- **GitOps**: ArgoCD (declarative continuous delivery with auto-sync)
+- **Database**: PostgreSQL 16 (shared database for applications)
 - **Monitoring**: metrics-server, Prometheus, Grafana, kube-state-metrics, node-exporter
 - **Observability**: OpenTelemetry Collector, Loki (logs), Tempo (traces), Promtail (log collection)
 - **Applications**: Kubernetes Dashboard, Portainer (Docker + K8s management), AdGuard Home, whoami test app
@@ -49,18 +50,21 @@ Root CA (10 years)
 | ArgoCD | https://argocd.homelab.local | Trusted (green lock) | GitOps continuous delivery |
 | AdGuard Home | https://adguard.homelab.local | Trusted (green lock) | DNS + ad blocking (cluster-wide) |
 | Prometheus | https://prometheus.homelab.local | Trusted (green lock) | Metrics collection & monitoring |
-| Grafana | https://grafana.homelab.local | Trusted (green lock) | Metrics visualization (admin/admin) |
+| Grafana | https://grafana.homelab.local | Trusted (green lock) | Metrics visualization |
 | whoami Test App | https://whoami.homelab.local | Trusted (green lock) | Ingress test |
+
+**Note**: Credentials for Grafana and ArgoCD are stored in Obsidian project notes, not in this repository.
 
 ## Cluster Statistics
 
 **Resource Count:**
 - Nodes: 3 (1 control-plane, 2 workers)
-- Pods: 45 (across 15 namespaces)
+- Pods: 46 (across 16 namespaces)
 - Certificates: 9 (all READY=True)
 - Ingress Routes: 7
-- PersistentVolumes: 6 (65Gi total)
+- PersistentVolumes: 7 (85Gi total)
 - Helm Releases: 1 (ArgoCD)
+- ArgoCD Applications: 2 (whoami, postgres)
 
 **Resource Usage (Typical Idle):**
 - CPU: ~9.6% cluster-wide
@@ -73,6 +77,7 @@ Root CA (10 years)
 - Grafana: 5Gi (dashboards & settings)
 - Loki: 20Gi (application logs, 15-day retention)
 - Tempo: 20Gi (distributed traces, 2 PVCs)
+- PostgreSQL: 20Gi (shared database for litellm, n8n)
 
 ## Prerequisites
 
@@ -137,7 +142,10 @@ k8s-homelab/
 │   ├── 07-metrics-server/        # Kubernetes metrics for kubectl top
 │   ├── 08-monitoring/            # Prometheus + Grafana + exporters
 │   ├── 09-opentelemetry/         # OpenTelemetry collector
-│   └── 10-observability/         # Loki + Tempo + Promtail
+│   ├── 10-observability/         # Loki + Tempo + Promtail
+│   ├── 11-argocd/                # ArgoCD GitOps applications
+│   │   └── applications/         # ArgoCD Application manifests
+│   └── 12-database/              # PostgreSQL shared database
 ├── scripts/                      # Automation scripts
 └── docs/                         # Documentation
 ```
@@ -178,15 +186,90 @@ kubectl top nodes                    # Should show CPU/memory usage
 kubectl top pods -A                  # Should show pod resource usage
 ```
 
-**Deploy New Service:**
+**Deploy New Service (GitOps Workflow):**
 ```bash
-# Add manifest with cert-manager annotation
+# 1. Add manifest with cert-manager annotation
 cert-manager.io/cluster-issuer: homelab-issuer
 
-# Apply and verify
-kubectl apply -f manifests/
+# 2. Create ArgoCD Application manifest in manifests/11-argocd/applications/
+# 3. Commit and push to Git
+git add manifests/
+git commit -m "Add new service"
+git push
+
+# 4. ArgoCD auto-syncs within 3 minutes (or manually sync)
+argocd app sync <app-name>
+
+# 5. Verify deployment
+kubectl get pods -n <namespace>
 kubectl get certificate -n <namespace>
 ```
+
+## GitOps with ArgoCD
+
+ArgoCD provides **declarative continuous delivery** with automatic synchronization from Git.
+
+**Workflow:**
+```
+Git Push → ArgoCD Detects Change → Auto-Sync (within 3 min) → Deploy to Cluster
+```
+
+**Current Applications:**
+- `whoami` - Test application (auto-sync enabled, self-heal enabled)
+- `postgres` - Shared PostgreSQL database (auto-sync enabled, self-heal enabled)
+
+**Key Features:**
+- ✅ **Auto-sync**: Git changes automatically deployed within 3 minutes
+- ✅ **Self-heal**: Manual kubectl changes auto-reverted to Git state
+- ✅ **Drift detection**: ArgoCD shows OutOfSync when cluster ≠ Git
+- ✅ **Prune**: Deleted manifests in Git = deleted resources in cluster
+
+**Access ArgoCD:**
+```bash
+# Web UI
+https://argocd.homelab.local
+
+# CLI
+argocd login argocd.homelab.local
+argocd app list
+argocd app sync <app-name>
+```
+
+**Adding New Applications:**
+1. Create Application manifest in `manifests/11-argocd/applications/`
+2. Reference the target manifest directory (e.g., `manifests/04-whoami/`)
+3. Enable auto-sync and prune in sync policy
+4. Apply: `kubectl apply -f manifests/11-argocd/applications/`
+5. ArgoCD will deploy and continuously sync from Git
+
+## PostgreSQL Database
+
+Shared PostgreSQL 16 database for applications requiring persistent data.
+
+**Configuration:**
+- Image: `postgres:16-alpine`
+- Storage: 20Gi PVC (StatefulSet with persistent data)
+- Port: 5432
+- Service: `postgres.database.svc.cluster.local`
+
+**Application Databases:**
+- `litellm` - LiteLLM proxy database
+- `n8n` - n8n workflow automation database
+
+**Connection String Pattern:**
+```
+postgresql://postgres:<password>@postgres.database.svc.cluster.local:5432/<database>
+```
+
+**Monitoring:**
+- PostgreSQL exporter (sidecar container on port 9187)
+- Prometheus scraping database metrics
+- Grafana dashboard (ID 9628) showing connections, queries, cache hits, locks
+
+**Managed by ArgoCD:**
+- Source: `manifests/12-database/`
+- Auto-sync: Enabled
+- Git changes auto-deployed within 3 minutes
 
 ## Portainer Setup
 
@@ -276,6 +359,8 @@ Prometheus scrapes:
 ├── cadvisor → Container CPU/memory/network/disk
 ├── kube-state-metrics → Pod/Deployment/Node states
 ├── node-exporter → Linux host metrics (3 DaemonSet pods)
+├── ArgoCD → GitOps metrics (sync status, health, git operations)
+├── PostgreSQL → Database metrics (connections, queries, locks, cache hits)
 ├── API server → Control plane metrics
 └── metrics-server → Resource metrics for kubectl top
 ```
@@ -285,12 +370,14 @@ Prometheus scrapes:
   - Query metrics, view scrape targets (Status → Targets)
   - All targets should show "UP" status
 - **Grafana**: https://grafana.homelab.local
-  - Default credentials: `admin` / `admin` (prompts to change on first login)
   - Prometheus datasource pre-configured
   - Import recommended dashboards (Dashboards → Import):
     - ID 315: Kubernetes cluster monitoring (Prometheus)
     - ID 6417: Kubernetes Cluster (Prometheus)
     - ID 1860: Node Exporter Full
+  - Pre-installed dashboards:
+    - ArgoCD: GitOps health and sync status
+    - PostgreSQL (ID 9628): Database performance and health
 
 **Key Metrics Available:**
 - `container_cpu_usage_seconds_total` - Container CPU usage
@@ -300,6 +387,10 @@ Prometheus scrapes:
 - `node_filesystem_size_bytes` - Node disk usage
 - `node_cpu_seconds_total` - Node CPU usage
 - `node_memory_MemTotal_bytes` - Node memory capacity
+- `argocd_app_sync_status` - ArgoCD application sync state
+- `argocd_app_health_status` - ArgoCD application health
+- `pg_stat_database_*` - PostgreSQL database statistics
+- `pg_locks_count` - PostgreSQL lock contention
 
 **Example Queries:**
 ```promql
@@ -311,12 +402,18 @@ sum(kube_pod_status_phase{phase="Running"})
 
 # Pod memory usage
 sum(container_memory_usage_bytes{pod=~".*"}) by (pod)
+
+# ArgoCD applications out of sync
+count(argocd_app_info{sync_status!="Synced"})
+
+# PostgreSQL active connections
+sum(pg_stat_database_numbackends) by (datname)
 ```
 
 ### Log Aggregation (Loki + Promtail)
 
 **Components:**
-- **Loki**: Centralized log storage (20Gi retention)
+- **Loki**: Centralized log storage (20Gi retention, 15-day retention)
 - **Promtail**: Log collection agent (DaemonSet on all nodes)
 
 **Access:**
@@ -338,7 +435,7 @@ sum(container_memory_usage_bytes{pod=~".*"}) by (pod)
 ### Distributed Tracing (Tempo + OpenTelemetry)
 
 **Components:**
-- **Tempo**: Trace storage backend (10Gi retention)
+- **Tempo**: Trace storage backend (20Gi retention)
 - **OpenTelemetry Collector**: Trace ingestion (OTLP endpoints)
 
 **Endpoints:**
@@ -370,6 +467,7 @@ kubectl get pods -l app=node-exporter -n monitoring
 # Check persistent storage
 kubectl get pvc -n monitoring
 kubectl get pvc -n observability
+kubectl get pvc -n database
 ```
 
 ## Validation
@@ -377,7 +475,7 @@ kubectl get pvc -n observability
 ```bash
 # Check cluster health
 kubectl get nodes                    # Expected: 3 nodes Ready
-kubectl get pods -A                  # Expected: 45 pods Running
+kubectl get pods -A                  # Expected: 46 pods Running
 kubectl top nodes                    # Should show resource usage
 kubectl top pods -A                  # Should show pod resource usage
 
@@ -400,6 +498,12 @@ kubectl get pods -n monitoring       # Expected: 7/7 Running
 kubectl get pods -n observability    # Expected: 5/5 Running
 kubectl get pods -n opentelemetry    # Expected: 1/1 Running
 kubectl get pods -n argocd           # Expected: 7/7 Running
+kubectl get pods -n database         # Expected: 1/1 Running (postgres-0 with 2/2 containers)
+
+# Check ArgoCD applications
+argocd app list                      # Expected: 2 applications (whoami, postgres)
+argocd app get whoami                # Should show Synced + Healthy
+argocd app get postgres              # Should show Synced + Healthy
 
 # Check recent pod restarts (troubleshooting)
 kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
@@ -419,6 +523,8 @@ kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
   - ✅ Mac-first kubectl workflow
   - ✅ Reproducible infrastructure
   - ✅ Complete observability stack
+  - ✅ GitOps continuous delivery with ArgoCD
+  - ✅ Shared PostgreSQL database infrastructure
 
 **Timeline:**
 - **2025-10-28**: Project initiated, repository created
@@ -430,6 +536,12 @@ kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
   - Monitoring stack (metrics-server, Prometheus, Grafana, kube-state-metrics, node-exporter)
   - Observability stack (Loki, Tempo, Promtail, OpenTelemetry Collector)
   - ArgoCD GitOps (automated continuous delivery)
+- **2025-11-02**: PostgreSQL database infrastructure
+  - Shared PostgreSQL 16 instance (20Gi storage)
+  - Application databases created (litellm, n8n)
+  - First ArgoCD-managed StatefulSet deployment
+  - GitOps workflow established for database layer
+  - ArgoCD and PostgreSQL monitoring integration
 
 ## Contributing
 
