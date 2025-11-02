@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: adguard-home
+  namespace: argocd
+spec:
+  # Project (use 'default' for now)
+  project: default
+
+  # Source: Your GitHub repository
+  source:
+    repoURL: https://github.com/jonhill90/k8s-homelab
+    targetRevision: main
+    path: manifests/02-adguard-home
+
+  # Destination: Where to deploy (this cluster)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: adguard-home
+
+  # Sync policy: Auto-sync enabled (validated with Dashboard)
+  syncPolicy:
+    automated:
+      prune: true      # Delete resources not in Git
+      selfHeal: true   # Revert manual kubectl changes
+
+    syncOptions:
+    - CreateNamespace=false  # Namespace already exists
+    - PruneLast=true         # Delete resources last during sync
+
+    # Retry strategy
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
