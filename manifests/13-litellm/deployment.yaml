@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: litellm
+  namespace: litellm
+  labels:
+    app: litellm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: litellm
+  template:
+    metadata:
+      labels:
+        app: litellm
+    spec:
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm:main-stable
+          ports:
+            - containerPort: 4000
+              name: http
+              protocol: TCP
+
+          # CRITICAL: Pass config file path as argument
+          args: ["--config", "/app/config.yaml"]
+
+          env:
+            # Master key for admin access
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-api-keys
+                  key: LITELLM_MASTER_KEY
+
+            # Salt key for encryption
+            - name: LITELLM_SALT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-api-keys
+                  key: LITELLM_SALT_KEY
+
+            # Store model in database
+            - name: STORE_MODEL_IN_DB
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-api-keys
+                  key: STORE_MODEL_IN_DB
+
+            # Database connection (from postgres-secret)
+            - name: DATABASE_URL
+              value: "postgresql://postgres:homelab-postgres-2025-secure-k8s@postgres.database.svc.cluster.local:5432/litellm"
+
+            # Anthropic API key
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: litellm-api-keys
+                  key: ANTHROPIC_API_KEY
+
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+
+          livenessProbe:
+            httpGet:
+              path: /health/liveliness
+              port: 4000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+      volumes:
+        - name: config
+          configMap:
+            name: litellm-config

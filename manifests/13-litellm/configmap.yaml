@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: litellm
+data:
+  config.yaml: |
+    # LiteLLM Proxy Configuration
+    # Models are managed via LiteLLM UI (STORE_MODEL_IN_DB=True)
+    model_list: []
+
+    # General settings
+    general_settings:
+      # Master key from environment variable
+      master_key: os.environ/LITELLM_MASTER_KEY
+
+      # Database for virtual keys, spending tracking
+      database_url: os.environ/DATABASE_URL
+
+      # Enable detailed logging
+      set_verbose: true
