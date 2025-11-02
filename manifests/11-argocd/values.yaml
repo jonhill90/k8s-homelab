@@ -1,0 +1,116 @@
+# ArgoCD Helm Chart Values
+# Chart: argo-cd v9.0.5
+# App Version: v3.1.9
+# Repository: https://argoproj.github.io/argo-helm
+
+# Global configuration
+global:
+  domain: argocd.homelab.local
+
+# Server configuration
+server:
+  service:
+    type: ClusterIP  # Use ClusterIP, not LoadBalancer (kind doesn't support it)
+
+  ingress:
+    enabled: false  # We use custom ingress with cert-manager (see ingress.yaml)
+
+  # Resources (adjust based on homelab capacity)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Repository server configuration
+repoServer:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Application controller configuration
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Redis configuration
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Dex (SSO/OIDC) configuration
+dex:
+  enabled: true  # Keep enabled for future SSO integration
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# Notifications controller
+notifications:
+  enabled: true  # For future Slack/email notifications
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# ApplicationSet controller
+applicationSet:
+  enabled: true  # For advanced multi-app templating
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+# Disable metrics (we can enable later if needed)
+metrics:
+  enabled: true  # Keep enabled for Prometheus scraping
+
+# Config management
+configs:
+  # Repository credentials (can be added via UI or CLI)
+  repositories: {}
+
+  # Secret management
+  secret:
+    createSecret: true  # Auto-generate admin password on first install
+
+  # RBAC configuration (default allows admin full access)
+  rbac:
+    policy.default: role:readonly  # Default users get read-only
+    policy.csv: |
+      p, role:admin, *, *, */*, allow
+      g, admin, role:admin
+
+# High availability (disabled for homelab)
+redis-ha:
+  enabled: false  # Single Redis instance is sufficient
+
+# External Redis (not needed, use built-in)
+externalRedis:
+  host: ""
