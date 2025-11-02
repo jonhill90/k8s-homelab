@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: postgres
+  namespace: argocd
+spec:
+  # Project (use 'default' for now)
+  project: default
+
+  # Source: Your GitHub repository
+  source:
+    repoURL: https://github.com/jonhill90/k8s-homelab
+    targetRevision: main  # or HEAD
+    path: manifests/12-database
+
+  # Destination: Where to deploy (this cluster)
+  destination:
+    server: https://kubernetes.default.svc  # In-cluster
+    namespace: database  # postgres runs in database namespace
+
+  # Sync policy: Start with manual sync
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true  # Create namespace if it doesn't exist
+    - PruneLast=true  # Delete resources last during sync
+
+    # Auto-sync enabled for full GitOps automation
+    automated:
+      prune: true      # Delete resources not in Git
+      selfHeal: true   # Revert manual kubectl changes
+
+    # Retry strategy
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
