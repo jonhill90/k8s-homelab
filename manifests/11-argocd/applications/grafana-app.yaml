@@ -30,6 +30,15 @@ spec:
     - CreateNamespace=false  # Namespace already exists
     - PruneLast=true         # Delete resources last during sync
 
+  # Ignore namespace differences (shared with prometheus app)
+  ignoreDifferences:
+  - group: ""
+    kind: Namespace
+    name: monitoring
+    jsonPointers:
+    - /metadata
+    - /spec
+
     # Retry strategy
     retry:
       limit: 5
