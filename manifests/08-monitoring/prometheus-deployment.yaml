@@ -219,6 +219,33 @@ data:
         - source_labels: [__meta_kubernetes_namespace]
           action: replace
           target_label: namespace
+
+      # WSL2 Host Metrics (node-exporter on WSL2)
+      - job_name: 'wsl2-host'
+        static_configs:
+        - targets: ['172.27.157.7:9100']
+          labels:
+            instance: 'wsl2-host'
+            environment: 'homelab'
+            host_type: 'wsl2'
+
+      # Docker Daemon Metrics
+      - job_name: 'docker-daemon'
+        static_configs:
+        - targets: ['172.27.157.7:9323']
+          labels:
+            instance: 'docker-daemon'
+            environment: 'homelab'
+            host_type: 'wsl2'
+
+      # Windows Host Metrics (windows_exporter - install separately)
+      - job_name: 'windows-exporter'
+        static_configs:
+        - targets: ['192.168.68.100:9182']
+          labels:
+            instance: 'windows-host'
+            environment: 'homelab'
+            host_type: 'windows'
 ---
 apiVersion: apps/v1
 kind: Deployment
