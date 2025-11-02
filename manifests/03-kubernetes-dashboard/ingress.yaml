@@ -6,6 +6,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: homelab-issuer
     nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    test.argocd.io/gitops-workflow: "testing-auto-sync"  # Test annotation
 spec:
   ingressClassName: nginx
   tls:
