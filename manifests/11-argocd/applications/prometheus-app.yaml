@@ -13,7 +13,7 @@ spec:
     targetRevision: main
     path: manifests/08-monitoring
     directory:
-      include: '{namespace.yaml,prometheus-*.yaml}'  # Only Prometheus resources
+      include: 'prometheus-*.yaml'  # Only Prometheus resources (namespace managed by grafana app)
 
   # Destination: Where to deploy (this cluster)
   destination:
