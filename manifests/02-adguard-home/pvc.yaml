@@ -5,6 +5,8 @@ metadata:
   namespace: adguard-home
   labels:
     app: adguard-home
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false  # Don't delete existing PVC
 spec:
   accessModes:
     - ReadWriteOnce
