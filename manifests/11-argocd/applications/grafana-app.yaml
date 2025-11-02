@@ -30,6 +30,14 @@ spec:
     - CreateNamespace=false  # Namespace already exists
     - PruneLast=true         # Delete resources last during sync
 
+    # Retry strategy
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
   # Ignore namespace differences (shared with prometheus app)
   ignoreDifferences:
   - group: ""
@@ -38,11 +46,3 @@ spec:
     jsonPointers:
     - /metadata
     - /spec
-
-    # Retry strategy
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
