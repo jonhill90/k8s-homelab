@@ -56,10 +56,10 @@ Root CA (10 years)
 
 **Resource Count:**
 - Nodes: 3 (1 control-plane, 2 workers)
-- Pods: 34 (across 13 namespaces)
+- Pods: 45 (across 15 namespaces)
 - Certificates: 9 (all READY=True)
 - Ingress Routes: 7
-- PersistentVolumes: 5 (55Gi total)
+- PersistentVolumes: 6 (65Gi total)
 - Helm Releases: 1 (ArgoCD)
 
 **Resource Usage (Typical Idle):**
@@ -71,8 +71,8 @@ Root CA (10 years)
 - AdGuard Home: 10Gi (DNS query logs & config)
 - Prometheus: 10Gi (metrics, 15-day retention)
 - Grafana: 5Gi (dashboards & settings)
-- Loki: 20Gi (application logs)
-- Tempo: 10Gi (distributed traces)
+- Loki: 20Gi (application logs, 15-day retention)
+- Tempo: 20Gi (distributed traces, 2 PVCs)
 
 ## Prerequisites
 
@@ -172,8 +172,8 @@ k9s
 ```bash
 kubectl get nodes                    # Expected: 3 Ready nodes
 kubectl get pods -A | grep -v Running # Should be empty (all pods Running)
-kubectl get certificate -A           # Expected: 8 certificates, all READY=True
-kubectl get ingress -A               # Expected: 6 ingress resources
+kubectl get certificate -A           # Expected: 9 certificates, all READY=True
+kubectl get ingress -A               # Expected: 7 ingress resources
 kubectl top nodes                    # Should show CPU/memory usage
 kubectl top pods -A                  # Should show pod resource usage
 ```
@@ -376,23 +376,30 @@ kubectl get pvc -n observability
 
 ```bash
 # Check cluster health
-kubectl get nodes                    # 3 nodes Ready
-kubectl get pods -A                  # All Running
-kubectl top nodes                    # Resource usage
-kubectl top pods -A                  # Pod resource usage
+kubectl get nodes                    # Expected: 3 nodes Ready
+kubectl get pods -A                  # Expected: 45 pods Running
+kubectl top nodes                    # Should show resource usage
+kubectl top pods -A                  # Should show pod resource usage
 
 # Check certificates
-kubectl get certificate -A           # All READY=True
+kubectl get certificate -A           # Expected: 9 certificates, all READY=True
 kubectl get secret -A | grep tls     # TLS secrets created
 
 # Check ingress
-kubectl get ingress -A               # Hosts configured
+kubectl get ingress -A               # Expected: 7 ingress resources
 curl -k https://dashboard.homelab.local
 curl -k https://whoami.homelab.local
 curl -k https://portainer.homelab.local
 curl -k https://adguard.homelab.local
 curl -k https://prometheus.homelab.local
 curl -k https://grafana.homelab.local
+curl -k https://argocd.homelab.local
+
+# Check observability stack
+kubectl get pods -n monitoring       # Expected: 7/7 Running
+kubectl get pods -n observability    # Expected: 5/5 Running
+kubectl get pods -n opentelemetry    # Expected: 1/1 Running
+kubectl get pods -n argocd           # Expected: 7/7 Running
 
 # Check recent pod restarts (troubleshooting)
 kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
@@ -416,9 +423,13 @@ kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
 **Timeline:**
 - **2025-10-28**: Project initiated, repository created
 - **2025-10-29**: MVP complete (Dashboard + whoami + TLS)
-- **2025-10-30**: AdGuard Home deployed
-- **2025-10-31**: Portainer hybrid architecture deployed
-- **2025-11-01**: Complete monitoring & observability stack deployed
+- **2025-10-30**: AdGuard Home deployed (port configuration fix)
+- **2025-11-01**: Complete observability stack deployed
+  - Portainer hybrid architecture (Docker + K8s management)
+  - AdGuard CoreDNS integration (cluster-wide DNS)
+  - Monitoring stack (metrics-server, Prometheus, Grafana, kube-state-metrics, node-exporter)
+  - Observability stack (Loki, Tempo, Promtail, OpenTelemetry Collector)
+  - ArgoCD GitOps (automated continuous delivery)
 
 ## Contributing
 

@@ -33,6 +33,8 @@ This repository is managed as part of a larger personal knowledge management sys
 - `202511010247` - Portainer Deployment (hybrid Docker + K8s architecture)
 - `202511010332` - AdGuard CoreDNS Integration (cluster-wide DNS)
 - `202511010402` - Prometheus + Grafana Monitoring Stack (complete observability)
+- `202511011421` - kube-state-metrics + node-exporter (fixing Grafana dashboard metrics)
+- `202511011935` - ArgoCD GitOps Configuration (automated deployment)
 
 **Important**: Use the `mcp__basic-memory__read_note` tool to read these notes when you need context about why decisions were made, what was tried before, or what's planned next. Do not assume - read the actual notes.
 
@@ -43,8 +45,8 @@ This repository is managed as part of a larger personal knowledge management sys
 **Cluster Health**: ✅ All systems operational
 - **Nodes**: 3/3 Ready (1 control-plane, 2 workers)
 - **Kubernetes Version**: v1.27.3
-- **Total Pods**: 34 Running
-- **Total Namespaces**: 13
+- **Total Pods**: 45 Running
+- **Total Namespaces**: 15
 - **Helm Releases**: 1 (ArgoCD)
 
 **Deployed Services**:
@@ -54,6 +56,9 @@ This repository is managed as part of a larger personal knowledge management sys
 - ✅ **AdGuard Home** - https://adguard.homelab.local (DNS + ad blocking, cluster-wide)
 - ✅ **Prometheus** - https://prometheus.homelab.local (metrics collection & time-series database)
 - ✅ **Grafana** - https://grafana.homelab.local (metrics visualization, admin/admin)
+- ✅ **Loki** - Log aggregation (20Gi storage, integrated with Grafana)
+- ✅ **Tempo** - Distributed tracing (20Gi storage, integrated with Grafana)
+- ✅ **OpenTelemetry Collector** - Trace/log ingestion (OTLP gRPC:4317, HTTP:4318)
 - ✅ **whoami** - https://whoami.homelab.local (test application)
 
 **Infrastructure Components**:
@@ -63,6 +68,9 @@ This repository is managed as part of a larger personal knowledge management sys
 - ✅ **CoreDNS** - Integrated with AdGuard (forwards to 10.96.126.140:53)
 - ✅ **Portainer Agent** - K8s deployment with NodePort 30778
 - ✅ **metrics-server** - Resource metrics for kubectl top and HPA
+- ✅ **kube-state-metrics** - Kubernetes object state metrics (pod/deployment/node states)
+- ✅ **node-exporter** - DaemonSet (3 pods) for Linux host metrics
+- ✅ **Promtail** - DaemonSet (3 pods) for log collection to Loki
 
 **Network Details**:
 - Control-plane IP: 172.18.0.4 (kind network)
@@ -75,10 +83,12 @@ This repository is managed as part of a larger personal knowledge management sys
 - Grafana Service: 10.96.186.116:3000
 
 **Storage**:
-- 3 PersistentVolumes (total 25Gi)
+- 6 PersistentVolumes (total 65Gi)
   - AdGuard Home: 10Gi
   - Prometheus: 10Gi (15-day retention)
   - Grafana: 5Gi
+  - Loki: 20Gi (log aggregation, 15-day retention)
+  - Tempo: 20Gi (distributed tracing, 2 PVCs)
 - StorageClass: `standard` (kind's local-path provisioner)
 
 ## Quick Health Check
@@ -97,7 +107,10 @@ kubectl get pods -n cert-manager     # Expected: 3/3 Running (cert-manager, cain
 kubectl get pods -n ingress-nginx    # Expected: 1/1 Running (ingress-nginx-controller)
 kubectl get pods -n portainer        # Expected: 1/1 Running (portainer-agent)
 kubectl get pods -n adguard-home     # Expected: 1/1 Running (adguard-home)
-kubectl get pods -n monitoring       # Expected: 2/2 Running (prometheus, grafana)
+kubectl get pods -n monitoring       # Expected: 7/7 Running (prometheus, grafana, kube-state-metrics, node-exporter×3)
+kubectl get pods -n observability    # Expected: 5/5 Running (loki, tempo, promtail×3)
+kubectl get pods -n opentelemetry    # Expected: 1/1 Running (otel-collector)
+kubectl get pods -n argocd           # Expected: 7/7 Running (application-controller, dex, redis, repo-server, server, etc.)
 kubectl get pods -n kube-system -l k8s-app=metrics-server  # Expected: 1/1 Running
 
 # Test metrics-server
@@ -109,13 +122,14 @@ kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
 ```
 
 **Healthy Cluster Baseline** (as of 2025-11-01):
-- All 26 pods in Running state
+- All 45 pods in Running state
 - No recent restarts
-- All 8 certificates issued and ready
-- All 6 ingress routes responding with green lock (trusted TLS)
+- All 9 certificates issued and ready
+- All 7 ingress routes responding with green lock (trusted TLS)
 - metrics-server operational (kubectl top works)
 - Prometheus scraping targets successfully
-- Grafana connected to Prometheus datasource
+- Grafana connected to Prometheus and Loki datasources
+- Tempo receiving traces via OpenTelemetry Collector
 
 ## Common Commands
 
@@ -262,11 +276,16 @@ manifests/
 ├── 03-kubernetes-dashboard/
 ├── 04-whoami/
 ├── 05-dns/               # DNS configuration
-└── 06-portainer/
-    ├── agent/            # K8s agent deployment
-    ├── ingress.yaml      # HTTPS ingress
-    ├── namespace.yaml
-    └── service.yaml      # Service + manual Endpoints
+├── 06-portainer/
+│   ├── agent/            # K8s agent deployment
+│   ├── ingress.yaml      # HTTPS ingress
+│   ├── namespace.yaml
+│   └── service.yaml      # Service + manual Endpoints
+├── 07-metrics-server/     # Kubernetes metrics for kubectl top
+├── 08-monitoring/         # Prometheus + Grafana + kube-state-metrics + node-exporter
+├── 09-opentelemetry/      # OpenTelemetry Collector
+├── 10-observability/      # Loki + Tempo + Promtail
+└── 11-argocd/            # ArgoCD GitOps applications
 ```
 
 **Deployment Script Pattern:**
@@ -435,25 +454,29 @@ kubectl logs -n <namespace> <pod-name>
 
 ## Deployment Statistics
 
-**Manifest Files**: 33 YAML files across 9 numbered directories
-**Documentation**: 7 markdown files (2,500+ lines)
+**Manifest Files**: 40+ YAML files across 12 numbered directories
+**Documentation**: 10+ markdown files (3,500+ lines)
 **Automation Scripts**: 5 bash scripts
 
 **Deployed Resources** (as of 2025-11-01):
-- **Deployments**: 14 total
+- **Deployments**: 18 total
   - cert-manager ecosystem: 3 (cert-manager, cainjector, webhook)
-  - Applications: 7 (adguard-home, whoami×2, dashboard, portainer-agent, prometheus, grafana)
-  - Infrastructure: 4 (ingress-nginx, coredns×2, local-path-provisioner, metrics-server)
-- **Services**: 16 total
-- **Ingress Routes**: 6 (dashboard, whoami, portainer, adguard, prometheus, grafana)
-- **Certificates**: 8 (root-ca, intermediate-ca, dashboard-tls, whoami-tls, portainer-tls, adguard-tls, prometheus-tls, grafana-tls)
+  - Monitoring: 3 (prometheus, grafana, kube-state-metrics)
+  - Observability: 2 (loki, tempo)
+  - Applications: 4 (adguard-home, dashboard, portainer-agent, whoami)
+  - ArgoCD: 5 (application-controller, dex, redis, repo-server, server)
+  - Infrastructure: 3 (ingress-nginx, metrics-server, otel-collector)
+- **DaemonSets**: 2 (node-exporter×3, promtail×3)
+- **Services**: 20+ total
+- **Ingress Routes**: 7 (dashboard, whoami, portainer, adguard, prometheus, grafana, argocd)
+- **Certificates**: 9 (root-ca, intermediate-ca, dashboard-tls, whoami-tls, portainer-tls, adguard-tls, prometheus-tls, grafana-tls, argocd-tls)
 - **ClusterIssuers**: 3 (selfsigned-issuer, homelab-root-ca-issuer, homelab-issuer)
-- **PersistentVolumes**: 3 (total 25Gi: AdGuard 10Gi, Prometheus 10Gi, Grafana 5Gi)
+- **PersistentVolumes**: 6 (total 65Gi: AdGuard 10Gi, Prometheus 10Gi, Grafana 5Gi, Loki 20Gi, Tempo 20Gi)
 
-**Pod Distribution**:
-- Control-plane node: 7 pods (system components + ingress-nginx)
-- Worker 1: 10 pods (distributed workloads)
-- Worker 2: 9 pods (distributed workloads)
+**Pod Distribution** (45 total):
+- Control-plane node: 16 pods (kube-system components + ingress-nginx + promtail)
+- Worker 1: 15 pods (distributed workloads + node-exporter + promtail)
+- Worker 2: 14 pods (distributed workloads + node-exporter + promtail)
 
 ## Version History
 
@@ -467,6 +490,11 @@ This is **Lab v2** - a complete rebuild of Lab v1 with the following fixes:
 - **2025-10-28**: Lab v2 planning and repository setup
 - **2025-10-29**: MVP deployment complete (Dashboard + whoami + PKI)
 - **2025-10-30**: AdGuard Home deployed (port configuration fix)
-- **2025-11-01**: Portainer hybrid architecture deployed + AdGuard CoreDNS integration + Complete monitoring stack (metrics-server, Prometheus, Grafana)
+- **2025-11-01**: Complete observability stack deployed
+  - Portainer hybrid architecture (Docker + K8s management)
+  - AdGuard CoreDNS integration (cluster-wide DNS)
+  - Monitoring stack (metrics-server, Prometheus, Grafana, kube-state-metrics, node-exporter)
+  - Observability stack (Loki, Tempo, Promtail, OpenTelemetry Collector)
+  - ArgoCD GitOps (automated continuous delivery)
 
 All architectural decisions are documented in `docs/architecture.md` and basic-memory project notes.
