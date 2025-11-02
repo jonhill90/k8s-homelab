@@ -53,10 +53,10 @@ This repository is managed as part of a larger personal knowledge management sys
 **Deployed Services**:
 - ✅ **Kubernetes Dashboard** - https://dashboard.homelab.local (cluster management UI)
 - ✅ **Portainer** - https://portainer.homelab.local (Docker + K8s management, hybrid architecture)
-- ✅ **ArgoCD** - https://argocd.homelab.local (GitOps continuous delivery, admin/q5uGw7Ofv1E0r81r)
+- ✅ **ArgoCD** - https://argocd.homelab.local (GitOps continuous delivery, see project note for credentials)
 - ✅ **AdGuard Home** - https://adguard.homelab.local (DNS + ad blocking, cluster-wide)
 - ✅ **Prometheus** - https://prometheus.homelab.local (metrics collection & time-series database)
-- ✅ **Grafana** - https://grafana.homelab.local (metrics visualization, admin/admin)
+- ✅ **Grafana** - https://grafana.homelab.local (metrics visualization, see project note for credentials)
 - ✅ **Loki** - Log aggregation (20Gi storage, integrated with Grafana)
 - ✅ **Tempo** - Distributed tracing (20Gi storage, integrated with Grafana)
 - ✅ **OpenTelemetry Collector** - Trace/log ingestion (OTLP gRPC:4317, HTTP:4318)
