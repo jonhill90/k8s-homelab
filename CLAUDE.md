@@ -40,14 +40,15 @@ This repository is managed as part of a larger personal knowledge management sys
 
 ## Current Cluster State
 
-**Last Updated**: 2025-11-01 (3 days uptime)
+**Last Updated**: 2025-11-02 (3 days uptime)
 
 **Cluster Health**: ✅ All systems operational
 - **Nodes**: 3/3 Ready (1 control-plane, 2 workers)
 - **Kubernetes Version**: v1.27.3
-- **Total Pods**: 45 Running
-- **Total Namespaces**: 15
+- **Total Pods**: 46 Running
+- **Total Namespaces**: 16
 - **Helm Releases**: 1 (ArgoCD)
+- **ArgoCD Applications**: 2 (whoami, postgres)
 
 **Deployed Services**:
 - ✅ **Kubernetes Dashboard** - https://dashboard.homelab.local (cluster management UI)
@@ -65,6 +66,7 @@ This repository is managed as part of a larger personal knowledge management sys
 - ✅ **cert-manager** - Three-tier PKI operational (9 certificates issued and ready)
 - ✅ **nginx-ingress** - Running on control-plane, routing 7 ingress resources
 - ✅ **ArgoCD** - Deployed via Helm (first Helm-managed application)
+- ✅ **PostgreSQL** - Shared database for applications (litellm, n8n databases created)
 - ✅ **CoreDNS** - Integrated with AdGuard (forwards to 10.96.126.140:53)
 - ✅ **Portainer Agent** - K8s deployment with NodePort 30778
 - ✅ **metrics-server** - Resource metrics for kubectl top and HPA
@@ -81,14 +83,16 @@ This repository is managed as part of a larger personal knowledge management sys
 - CoreDNS: 10.96.0.10:53
 - Prometheus Service: 10.96.72.113:9090
 - Grafana Service: 10.96.186.116:3000
+- PostgreSQL Service: 10.96.199.179:5432
 
 **Storage**:
-- 6 PersistentVolumes (total 65Gi)
+- 7 PersistentVolumes (total 85Gi)
   - AdGuard Home: 10Gi
   - Prometheus: 10Gi (15-day retention)
   - Grafana: 5Gi
   - Loki: 20Gi (log aggregation, 15-day retention)
   - Tempo: 20Gi (distributed tracing, 2 PVCs)
+  - PostgreSQL: 20Gi (shared database for litellm, n8n)
 - StorageClass: `standard` (kind's local-path provisioner)
 
 ## Quick Health Check
@@ -105,6 +109,7 @@ kubectl get ingress -A               # Expected: 6 ingress resources
 # Verify critical services
 kubectl get pods -n cert-manager     # Expected: 3/3 Running (cert-manager, cainjector, webhook)
 kubectl get pods -n ingress-nginx    # Expected: 1/1 Running (ingress-nginx-controller)
+kubectl get pods -n database         # Expected: 1/1 Running (postgres-0)
 kubectl get pods -n portainer        # Expected: 1/1 Running (portainer-agent)
 kubectl get pods -n adguard-home     # Expected: 1/1 Running (adguard-home)
 kubectl get pods -n monitoring       # Expected: 7/7 Running (prometheus, grafana, kube-state-metrics, node-exporter×3)
@@ -121,15 +126,17 @@ kubectl top pods -A                  # Should show pod resource usage
 kubectl get pods -A -o wide | awk '{if ($4 > 5) print}'  # Pods with >5 restarts
 ```
 
-**Healthy Cluster Baseline** (as of 2025-11-01):
-- All 45 pods in Running state
+**Healthy Cluster Baseline** (as of 2025-11-02):
+- All 46 pods in Running state
 - No recent restarts
 - All 9 certificates issued and ready
 - All 7 ingress routes responding with green lock (trusted TLS)
+- PostgreSQL operational (2 application databases: litellm, n8n)
 - metrics-server operational (kubectl top works)
 - Prometheus scraping targets successfully
 - Grafana connected to Prometheus and Loki datasources
 - Tempo receiving traces via OpenTelemetry Collector
+- ArgoCD managing 2 applications (whoami, postgres) with auto-sync
 
 ## Common Commands
 
@@ -285,7 +292,9 @@ manifests/
 ├── 08-monitoring/         # Prometheus + Grafana + kube-state-metrics + node-exporter
 ├── 09-opentelemetry/      # OpenTelemetry Collector
 ├── 10-observability/      # Loki + Tempo + Promtail
-└── 11-argocd/            # ArgoCD GitOps applications
+├── 11-argocd/            # ArgoCD GitOps applications
+│   └── applications/     # ArgoCD Application manifests (whoami, postgres)
+└── 12-database/          # PostgreSQL shared database (managed by ArgoCD)
 ```
 
 **Deployment Script Pattern:**
@@ -454,11 +463,11 @@ kubectl logs -n <namespace> <pod-name>
 
 ## Deployment Statistics
 
-**Manifest Files**: 40+ YAML files across 12 numbered directories
-**Documentation**: 10+ markdown files (3,500+ lines)
+**Manifest Files**: 46 YAML files across 13 numbered directories
+**Documentation**: 11 markdown files (4,000+ lines)
 **Automation Scripts**: 5 bash scripts
 
-**Deployed Resources** (as of 2025-11-01):
+**Deployed Resources** (as of 2025-11-02):
 - **Deployments**: 18 total
   - cert-manager ecosystem: 3 (cert-manager, cainjector, webhook)
   - Monitoring: 3 (prometheus, grafana, kube-state-metrics)
@@ -466,15 +475,17 @@ kubectl logs -n <namespace> <pod-name>
   - Applications: 4 (adguard-home, dashboard, portainer-agent, whoami)
   - ArgoCD: 5 (application-controller, dex, redis, repo-server, server)
   - Infrastructure: 3 (ingress-nginx, metrics-server, otel-collector)
+- **StatefulSets**: 1 (postgres)
 - **DaemonSets**: 2 (node-exporter×3, promtail×3)
-- **Services**: 20+ total
+- **Services**: 21 total
 - **Ingress Routes**: 7 (dashboard, whoami, portainer, adguard, prometheus, grafana, argocd)
 - **Certificates**: 9 (root-ca, intermediate-ca, dashboard-tls, whoami-tls, portainer-tls, adguard-tls, prometheus-tls, grafana-tls, argocd-tls)
 - **ClusterIssuers**: 3 (selfsigned-issuer, homelab-root-ca-issuer, homelab-issuer)
-- **PersistentVolumes**: 6 (total 65Gi: AdGuard 10Gi, Prometheus 10Gi, Grafana 5Gi, Loki 20Gi, Tempo 20Gi)
+- **PersistentVolumes**: 7 (total 85Gi: AdGuard 10Gi, Prometheus 10Gi, Grafana 5Gi, Loki 20Gi, Tempo 20Gi, PostgreSQL 20Gi)
+- **ArgoCD Applications**: 2 (whoami, postgres - both auto-syncing)
 
-**Pod Distribution** (45 total):
-- Control-plane node: 16 pods (kube-system components + ingress-nginx + promtail)
+**Pod Distribution** (46 total):
+- Control-plane node: 17 pods (kube-system components + ingress-nginx + promtail + postgres-0)
 - Worker 1: 15 pods (distributed workloads + node-exporter + promtail)
 - Worker 2: 14 pods (distributed workloads + node-exporter + promtail)
 
@@ -496,5 +507,10 @@ This is **Lab v2** - a complete rebuild of Lab v1 with the following fixes:
   - Monitoring stack (metrics-server, Prometheus, Grafana, kube-state-metrics, node-exporter)
   - Observability stack (Loki, Tempo, Promtail, OpenTelemetry Collector)
   - ArgoCD GitOps (automated continuous delivery)
+- **2025-11-02**: PostgreSQL database infrastructure
+  - Shared PostgreSQL 16 instance (20Gi storage)
+  - Application databases created (litellm, n8n)
+  - First ArgoCD-managed StatefulSet deployment
+  - GitOps workflow established for database layer
 
 All architectural decisions are documented in `docs/architecture.md` and basic-memory project notes.
